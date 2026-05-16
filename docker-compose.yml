@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  analyzer:
+    build: .
+    volumes:
+      - .:/app
+      # Сюда мы позже примонтируем ваш реальный legacy-проект для анализа:
+      # - /path/to/your/legacy-project:/app/legacy_project:ro
