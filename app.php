@@ -2,8 +2,9 @@
 
 require __DIR__ . '/vendor/autoload.php';
 
+use App\Analyzer\CakeV2PropertyExtractor;
+use App\Analyzer\ProjectIndexer;
 use App\Analyzer\CakeAnalyzer;
-use App\Generator\PromptGenerator;
 
 echo "=== CakePrompt Engineering System v1.0 ===\n\n";
 
@@ -26,19 +27,42 @@ if (!in_array($taskType, $allowedTypes)) {
     exit(1);
 }
 
-echo "🎯 Файл для анализа: $filePath\n";
-echo "📋 Тип задачи: $taskType\n\n";
+// Проверяем физическое существование файла перед запуском тяжелых процессов
+if (!file_exists($filePath)) {
+    echo "❌ Ошибка: Файл не найден по пути: $filePath\n";
+    exit(1);
+}
 
-echo "⏳ Запуск Анализатора кода...\n";
+echo "🎯 Файл для анализа: $filePath\n";
+echo "📋 Тип задачи: $taskType\n";
+
+// ... код инициализации индексатора и анализатора ...
 
 try {
-    $analyzer = new CakeAnalyzer($filePath);
+    // 1. Индексация (как в Задаче А)
+    echo "⚙️  Инициализация глобального индексатора...\n";
+    $extractor = new CakeV2PropertyExtractor();
+    $indexer = new ProjectIndexer($extractor);
+    $projectRoot = dirname($filePath, 2);
+    
+    $indexer->indexProject($projectRoot);
+    echo "Готово!\n\n";
+
+    // 2. Детальный анализ
+    echo "⏳ Запуск детального анализа файла...\n";
+    $analyzer = new CakeAnalyzer($filePath, $indexer);
     $analysisResult = $analyzer->analyze();
 
-    // Превращаем результат в JSON с красивыми отступами
+    // 3. Жесткая валидация контракта данных (НОВОЕ В ЗАДАЧЕ Б)
+    echo "🛡️  Валидация структуры данных по JSON-схеме... ";
+    $schemaPath = __DIR__ . '/src/Shared/analysis-schema.json';
+    $validator = new App\Shared\JsonSchemaValidator($schemaPath);
+    $validator->validate($analysisResult);
+    echo "Успешно!\n\n";
+
+    // 4. Превращаем результат в JSON
     $jsonOutput = json_encode($analysisResult, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     
-    // Проверяем валидность полученного JSON (базовая проверка)
     if (json_last_error() !== JSON_ERROR_NONE) {
         throw new Exception("Ошибка генерации JSON: " . json_last_error_msg());
     }

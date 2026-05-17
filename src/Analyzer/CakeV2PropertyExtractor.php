@@ -102,4 +102,27 @@ class CakeV2PropertyExtractor extends NodeVisitorAbstract
     {
         return $this->associations;
     }
+
+    /**
+     * Сброс внутреннего состояния экстрактора перед парсингом нового файла
+     */
+    public function clear(): void
+    {
+        $this->models = [];
+        $this->components = [];
+        $this->associations = [];
+    }
+
+    /**
+     * Возвращает плоский список всех сущностей, от которых зависит данный файл,
+     * для построения глобального индекса связей.
+     */
+    public function extractDependencies(): array
+    {
+        $flat = array_merge($this->models, $this->components);
+        foreach ($this->associations as $assoc) {
+            $flat[] = $assoc['model'];
+        }
+        return array_unique($flat);
+    }
 }

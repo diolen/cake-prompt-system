@@ -78,7 +78,7 @@ services:
 1. Создайте эти файлы в новой папке.
 2. Запустите сборку и установку зависимостей в терминале:
 ```bash
-docker compose build
-docker compose run --rm analyzer composer install
+docker-compose build
+docker-compose run --rm analyzer composer install
 
 ```

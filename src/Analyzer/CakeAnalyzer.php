@@ -10,21 +10,21 @@ class CakeAnalyzer
 {
     private string $filePath;
     private string $code;
+    private ProjectIndexer $indexer;
 
-    public function __construct(string $filePath)
+    // В конструктор теперь обязательно передаем ProjectIndexer
+    public function __construct(string $filePath, ProjectIndexer $indexer)
     {
-        if (!file_exists($filePath)) {
-            throw new Exception("Ошибка: Файл не найден по пути: {$filePath}");
-        }
-        
         $this->filePath = $filePath;
         $this->code = file_get_contents($filePath);
+        $this->indexer = $indexer;
     }
 
     public function analyze(): array
     {
         $layer = $this->detectLayer();
         $version = $this->detectCakeVersion($layer);
+        $className = basename($this->filePath, '.php');
 
         // По умолчанию связи пустые
         $models = [];
@@ -56,10 +56,14 @@ class CakeAnalyzer
             }
         }
 
-        // Расчет метрики Connectivity (Связность)
+        // Расчет метрики Connectivity (Связность / Исходящие связи)
         $connectivity = ($layer === 'Controller') 
             ? count($models) + count($components) 
             : count($associations);
+
+        // Получаем метрики влияния из глобального индексатора (Входящие связи)
+        $influenceScore = $this->indexer->getInfluenceScore($className);
+        $impactedBy = $this->indexer->getDependentComponents($className);
 
         return [
             'system_meta' => [
@@ -70,17 +74,18 @@ class CakeAnalyzer
             'task_context' => [
                 'target_layer' => $layer,
                 'file_path' => $this->filePath,
-                'class_name' => basename($this->filePath, '.php')
+                'class_name' => $className
             ],
             'metrics' => [
                 'connectivity' => $connectivity,
-                'influence_score' => 'UNKNOWN'
+                'influence_score' => $influenceScore // Теперь рассчитывается динамически!
             ],
             'relations' => [
                 'models' => $models,
                 'components' => $components,
-                'associations' => $associations // Добавляем новый блок для моделей
-            ]
+                'associations' => $associations
+            ],
+            'impacted_by' => $impactedBy // Добавляем список файлов, которые зависят от текущего
         ];
     }
 
@@ -104,7 +109,6 @@ class CakeAnalyzer
         }
 
         // РЕЗЕРВНЫЙ ВАРИАНТ: Анализ содержимого файла
-        // Если класс расширяет AppModel или Model — это 100% модель CakePHP
         if (preg_match('/class\s+\w+\s+extends\s+(AppModel|Model)/i', $this->code)) {
             return 'Model';
         }
