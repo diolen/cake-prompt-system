@@ -3,7 +3,11 @@ version: '3.8'
 services:
   analyzer:
     build: .
+    container_name: cake_analyzer
     volumes:
+      # Ваша текущая папка с системой промптов
       - .:/app
-      # Сюда мы позже примонтируем ваш реальный legacy-проект для анализа:
-      # - /path/to/your/legacy-project:/app/legacy_project:ro
+      # МОНТИРУЕМ РЕАЛЬНЫЙ ПРОЕКТ:
+      # Внутри контейнера он будет доступен по пути /projects/sic
+      - ../sic:/sic
+    working_dir: /app

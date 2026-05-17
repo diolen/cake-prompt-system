@@ -1,0 +1,4319 @@
+# СИСТЕМНЫЕ ОГРАНИЧЕНИЯ ОКРУЖЕНИЯ (КРИТИЧЕСКИ ВАЖНО)
+Вы — эксперт по legacy-разработке на PHP и фреймворку CakePHP v2.x.
+Весь предоставляемый вами код ДОЛЖЕН строго соответствовать стандартам **PHP 5.6**.
+
+## Жесткие синтаксические запреты PHP 5.6:
+1. ЗАПРЕЩЕНО использовать короткий синтаксис массивов `[]`. Используйте только `array()`.
+2. ЗАПРЕЩЕН Null Coalescing оператор `??`. Используйте `isset($var) ? $var : $default`.
+3. ЗАПРЕЩЕНЫ стрелочные функции `fn() =>`. Используйте `function() use () {}`.
+4. ЗАПРЕЩЕНЫ typed properties (модификаторы типов свойств класса, например: private $name;). Пишите просто private $name;.
+5. ЗАПРЕЩЕНЫ return types и argument types для скалярных типов (string, int, bool) в сигнатурах методов.
+
+---
+
+# КОНТЕКСТ АНАЛИЗИРУЕМОГО КОМПОНЕНТА
+Ниже приведены данные статического анализа файла, который необходимо обработать:
+{
+    "system_meta": {
+        "framework": "CakePHP",
+        "framework_version": "v2",
+        "php_version": "5.6"
+    },
+    "task_context": {
+        "target_layer": "Controller",
+        "file_path": "/sic/app/Controller/SicsController.php",
+        "class_name": "SicsController"
+    },
+    "metrics": {
+        "connectivity": 16,
+        "influence_score": 2
+    },
+    "relations": {
+        "models": [
+            "UsersCenter",
+            "OperationUnit",
+            "UsersOperationUnit",
+            "EventualContractBudget",
+            "InvoicesOc",
+            "Item",
+            "User",
+            "Contract",
+            "RatingSupplier",
+            "Category",
+            "SuppliersCategories",
+            "Person",
+            "Van",
+            "SicsItem",
+            "Users"
+        ],
+        "components": [
+            "Email"
+        ],
+        "associations": []
+    },
+    "impacted_by": [
+        "Supplier",
+        "InvoicesOc"
+    ]
+}
+
+---
+
+# ИНСТРУКЦИЯ К ВЫПОЛНЕНИЮ ЗАДАЧИ
+Найдите и устраните баг или уязвимость в целевом файле.
+⚠️ ВНИМАНИЕ: Вы исправляете баг в высоконагруженном по связям компоненте (2). Изменения затронут или могут сломать: Supplier, InvoicesOc. Исправление багов не должно менять сигнатуры методов или возвращаемые типы данных, если это жестко не требуется для устранения дефекта.
+
+Правила отладки и исправления ошибок:
+1. Защита от Null: В PHP 5.6 нет Nullsafe-оператора (?->). Обязательно добавляйте явные проверки if (is_object($var)) или if (!empty($var)) перед вызовом методов смежных моделей или компонентов.
+2. Логирование CakePHP v2: При необходимости логирования ошибок используйте CakeLog::write('debug', 'сообщение') или $this->log('сообщение', 'debug'). Запрещено использовать современные методы логирования PSR-3.
+3. Обработка исключений: Помните, что в PHP 5.6 базовый интерфейс \Throwable отсутствует, а большинство внутренних ошибок PHP не перехватываются через try/catch (Exception). Убедитесь, что логика валидации предотвращает фатальные ошибки до их возникновения.
+
+---
+
+# ИСХОДНЫЙ КОД ЦЕЛЕВОГО ФАЙЛА
+Ниже представлен оригинальный код компонента, который требует обработки. 
+Изучите его структуру, методы и зависимости перед началом работы:
+
+```php
+<?php
+App::uses('Component', 'Controller', 'CakeEmail', 'Network/Email');
+
+class SicsController extends AppController {
+	
+	public $name = 'Sics';
+	public $paginate = array();
+	public $limitError = '';
+	public $components = array('Email');
+	
+	public function beforeFilter() {
+		parent::beforeFilter();
+		$this->Auth->allow('send_alerts');
+		$this->paginate = array();
+		$this->layout = 'admin';
+	}
+	
+	public function admin_index( $type = '', $sicId = null) {
+		$role = $this->Auth->user('role');
+        $authUserId = $this->Auth->user('id');
+        $authCenterId = $this->Auth->user('center_id');
+        $this->set('role', $role);
+		$this->set('title_for_layout', 'SICs');
+		$this->set('loadJQueryUI', true);
+		$this->set('loadChosenJS', true);
+        $this->set('contentForLayoutClass', 'container-fluid');
+        $this->paginate['conditions'] = array();
+
+        // Info completa de UO
+        $this->loadModel('UsersCenter');
+        $this->loadModel('OperationUnit');
+        $this->loadModel('UsersOperationUnit');
+        $operarionUnitsInfo = $this->UsersOperationUnit->getOperationUnitsInfo(
+        	$this->UsersCenter, $this->OperationUnit, $this->Sic->Center, $authUserId);
+
+        $userCenters = $operarionUnitsInfo['userCenters'];
+        $userAdm = $this->UsersOperationUnit->find('first', array('conditions' => array('role' => 10, 'operation_unit_id' => 1, 'user_id' => $authUserId)));
+
+        $this->set('userCenters', $userCenters);
+        $this->set('centersGT', $operarionUnitsInfo['centersGT']);
+        $this->set('centersTO', $operarionUnitsInfo['centersTO']);
+        $this->set('usersOperationUnit', $operarionUnitsInfo['usersOperationUnit']);
+        $this->set('operationCentersUnits', $operarionUnitsInfo['operationCentersUnits']);
+        $this->set('operationUnits', $operarionUnitsInfo['operationUnits']);
+        // Fin de Info de UO
+
+        // Para usuario de Natalia Alvaro
+        if($authUserId == 111) {
+        	$userCenters = array(38, 40);
+        }
+
+		// elimino filtros
+		if(isset($this->request->params['named']['search']) && $this->request->params['named']['search'] == 'clear-search'){
+			$this->Session->delete('App.Sic');
+		}
+
+		// tipo
+		if(!empty($type)){
+			$this->Session->write('App.Sic.type', $type);
+		}else if( !$this->Session->check('App.Sic.type') ){
+			$this->Session->write('App.Sic.type', 'sic');
+		}
+
+		$type = $this->Session->read('App.Sic.type');
+
+        // Actualizo MO y FF a rendida
+        if(in_array($type, array('mo', 'ff'))) {
+            $now = new \Datetime('now');
+            $ts_now = $now->format('U');
+            $ts_yesterday = strtotime("-1 year", $ts_now);
+            $date_month = date('m', $ts_yesterday);
+            $date_year = date('Y', $ts_yesterday);            
+
+            $sicsIds = array();
+            $sicMovementsType = $type == 'ff' ? 3 : 20;
+
+			$date_start = $this->Session->read('App.Sic.date_start');
+			if(!empty($date_start)){
+				$d = split('-', $date_start);
+				$sicMovementsOptions = array(
+	                'fields' => array(
+	                	'SicsMovement.sic_id', 
+	                	'Sic.total', 
+	                	'SUM(SicsMovement.grand_total) AS sum_grand_total'),
+	                'conditions' => array(
+	                	'SicsMovement.type_id' => $sicMovementsType, 
+		                	'Sic.closed' => 1,
+	                	'Sic.robinson <> ' => 1,
+	                	'Sic.created >= ' => $d[2].'-'.$d[1].'-'.$d[0]
+	                ),
+	                'group' => array('SicsMovement.sic_id')
+	            );
+			} else {
+				$sicMovementsOptions = array(
+	                'fields' => array(
+	                	'SicsMovement.sic_id', 
+	                	'Sic.total', 
+	                	'SUM(SicsMovement.grand_total) AS sum_grand_total'),
+	                'conditions' => array(
+	                	'SicsMovement.type_id' => $sicMovementsType, 
+		                	'Sic.closed' => 1,
+	                	'Sic.robinson <> ' => 1,
+	                	'Sic.created >= ' => $this->Sic->getStartPeriod()
+	                ),
+	                'group' => array('SicsMovement.sic_id')
+	            );				
+			}
+
+
+            $sicsMovement = $this->Sic->SicsMovement->find('all', $sicMovementsOptions);
+            
+            foreach($sicsMovement as $mov) {
+                if($mov['Sic']['total'] - $mov[0]['sum_grand_total'] < 1) {
+                    $sicsIds[] = $mov['SicsMovement']['sic_id'];
+                }
+            }
+
+            if(count($sicsIds) > 0) {
+                $this->Sic->updateAll(array('Sic.status_id' => 10), array('Sic.id' => $sicsIds));
+            }
+        }        
+        
+		// elimino filtros
+		if(isset($this->request->params['named']['sic_id']) && !empty( $this->request->params['named']['sic_id']) ){
+			$this->Session->write('App.Sic.sic_id', $this->request->params['named']['sic_id'] );
+		}
+
+		// ver solo los de su rol
+		if(isset($this->request->data['Search']['only_my_role']) ){
+			$this->Session->write('App.Sic.only_my_role', $this->request->data['Search']['only_my_role'] );
+		}
+
+        if (isset($this->request->data['Search']['center_id']) && $this->request->data['Search']['center_id'] != "") {
+            $this->Session->write('App.Sic.center_id', $this->request->data['Search']['center_id']);
+        }		
+
+		// centro operativo
+		if(isset($this->request->data['Search']['operation_unit_id']) ){
+			$this->Session->write('App.Sic.operation_unit_id', $this->request->data['Search']['operation_unit_id'] );
+		}
+
+		// proveedor
+		if(isset($this->request->data['Search']['supplier_id']) ){
+			$this->Session->write('App.Sic.supplier_id', $this->request->data['Search']['supplier_id'] );
+		}		
+
+		// fecha inicio
+		if(isset($this->request->data['Search']['date_start']) ){
+			$this->Session->write('App.Sic.date_start', $this->request->data['Search']['date_start'] );
+		}
+
+		// fecha fin
+		if(isset($this->request->data['Search']['date_end']) ){
+			$this->Session->write('App.Sic.date_end', $this->request->data['Search']['date_end'] );
+		}
+
+		// seteo filtros
+		if(isset($this->request->data['Search']['contract_id']) && $this->request->data['Search']['contract_id'] != ""){
+            $this->Session->delete('App.Sic.eventual_contract_id');
+			$this->Session->write('App.Sic.contract_id', $this->request->data['Search']['contract_id']);
+		}
+		if(isset($this->request->data['Search']['eventual_contract_id']) && $this->request->data['Search']['eventual_contract_id'] != ""){
+            $this->Session->delete('App.Sic.contract_id');
+			$this->Session->write('App.Sic.eventual_contract_id', $this->request->data['Search']['eventual_contract_id']);
+		}
+		if(isset($this->request->data['Search']['sic_number'])){
+			$this->Session->write('App.Sic.sic_number', $this->request->data['Search']['sic_number']);
+		}
+		if(isset($this->request->data['Search']['invoice_number'])){
+			$this->Session->write('App.Sic.invoice_number', $this->request->data['Search']['invoice_number']);
+		}
+		// solo para FF
+		if(isset($this->request->data['Search']['receipt'])){
+			$this->Session->write('App.Sic.receipt', $this->request->data['Search']['receipt']);
+		}		
+		if(isset($this->request->data['Search']['store_manager_id'])){
+			$this->Session->write('App.Sic.store_manager_id', $this->request->data['Search']['store_manager_id']);
+		}
+		if(isset($this->request->data['Search']['ff_finished'])){ // ya rendidas
+			$this->Session->write('App.Sic.ff_finished', $this->request->data['Search']['ff_finished']);
+		}
+        
+		if(isset($this->request->data['Search']['jefeobra_id']) && $this->request->data['Search']['jefeobra_id'] != ""){
+            $this->Session->write('App.Sic.jefeobra_id', $this->request->data['Search']['jefeobra_id']);
+		}        
+        $joId = $this->Session->read('App.Sic.jefeobra_id');
+
+		if(isset($this->request->data['Search']['user_id']) && $this->request->data['Search']['user_id'] != ""){
+            $this->Session->write('App.Sic.user_id', $this->request->data['Search']['user_id']);
+		}
+
+		if(isset($this->request->data['Search']['location']) && $this->request->data['Search']['location'] != ""){
+            $this->Session->write('App.Sic.location', $this->request->data['Search']['location']);
+		}        
+        
+		if(isset($this->request->data['Search']['item_category_id']) && $this->request->data['Search']['item_category_id'] != ""){
+            $this->Session->write('App.Sic.item_category_id', $this->request->data['Search']['item_category_id']);
+		}        
+        
+        $jsId = $this->Session->read('App.Sic.user_id');
+        if($role == 10 && (empty($joId) || empty($jsId))) {
+            if(empty($this->Session->read('App.Sic.center_id'))) {
+                if(count($userCenters) > 0) {
+                	if(is_null($sicId) && empty($this->Session->read('App.Sic.sic_number'))) {
+                    	$this->paginate['conditions']['Sic.center_id'] = $userCenters;
+                	}
+                } else {
+                    $this->paginate['conditions']['Sic.center_id'] = $this->Auth->user('center_id');
+                }
+            }
+        }
+        // Aprobada, Pagada, Pendiente y Clidad
+		if(isset($this->request->data['Search']['sic_status_id'])){
+			$this->Session->write('App.Sic.sic_status_id', $this->request->data['Search']['sic_status_id']);
+		}
+        
+		$this->applyFilters();
+
+        $centerId = $this->Session->read('App.Sic.center_id');
+        $locationTitle = $this->Session->read('App.Sic.location');
+        $eventualContractId = $this->Session->read('App.Sic.eventual_contract_id');
+
+        if($role == 60 || !empty($eventualContractId) || !empty($joId)) {
+            $this->paginate['joins'] = array(array('table' => 'eventual_contract_budgets', 'alias' => 'EventualContractBudget', 'type' => 'INNER', 'conditions' => array(array('Sic.eventual_contract_id = EventualContractBudget.id'))));
+            $this->paginate['conditions']['Sic.contract_type_id'] = 1;
+            if($role == 60) {
+                $this->paginate['conditions']['EventualContractBudget.jefeobra_id'] = $authUserId;
+                //if(count($userCenters) > 0) {$this->paginate['conditions']['EventualContractBudget.center_id'] = $userCenters;}
+            }
+            if(!empty($joId)) {$this->paginate['conditions']['EventualContractBudget.jefeobra_id'] =  $joId;}
+            if(!empty($eventualContractId)) {$this->paginate['conditions']['EventualContractBudget.id'] = $eventualContractId;}
+		} elseif($role == 20) {
+            if(empty($centerId)) {
+                if(count($userCenters) > 0) {
+                    $this->paginate['conditions']['Sic.center_id'] = $userCenters;
+                } else {
+                    //$this->paginate['conditions']['Contract.user_id'] =  $authUserId;
+                    $this->paginate['conditions'] = array('Sic.center_id' => $centerId);
+                }                
+            }
+            $this->paginate['conditions']['Sic.contract_type_id'] = 0;                
+		} elseif(in_array($role, array(90, 100))) {
+			// GT, TO
+			$this->paginate['conditions']['Sic.center_id'] = $userCenters;
+		}
+        if(!empty($locationTitle)) {
+            $this->paginate['joins'] = array(array('table' => 'eventual_contract_budgets', 'alias' => 'EventualContractBudget', 'type' => 'left', 'conditions' => array('Sic.eventual_contract_id = EventualContractBudget.id')));
+            $this->paginate['conditions']['EventualContractBudget.location'] = $locationTitle;
+            $this->request->data['Search']['location'] = $locationTitle;
+        }
+
+        if(!empty($jsId)) {
+            $this->paginate['conditions']['Contract.user_id'] =  $jsId;
+            $this->paginate['conditions']['Sic.contract_type_id'] = 0;
+		}
+
+        // if(!is_null($sicId)) {
+        //     $this->paginate['conditions']['Sic.id'] = $sicId;
+        // }
+        $this->paginate['conditions']['Sic.robinson <>'] = 1;
+        //$this->paginate['conditions']['Sic.created >'] = '2022-12-31';
+
+        $sic_status_id = $this->Session->read('App.Sic.sic_status_id');
+		if($type == 'sic' && empty($sic_status_id) && in_array($authUserId, $this->Sic->admUsersArray)) {
+			// $this->paginate['conditions']['Sic.sp_status_id'] = 2;
+			// $this->paginate['conditions']['Sic.ab_status_id <>'] = 2;
+			$this->paginate['order'] = array(
+				'Sic.sp_status_id' => 'desc',
+				'Sic.ab_status_id' => 'asc'
+			);
+		} elseif($type == 'sic' && $role == 10) {
+			$this->paginate['order'] = 'Sic.id DESC';			
+		} else {
+			$this->paginate['order'] = 'Sic.date_of DESC';
+		}
+
+		$this->paginate['contain'] = array(
+			'SicsMovement' => array('fields' => array('SicsMovement.id', 'SicsMovement.sic_id', 'SicsMovement.category_id')),
+			'Supplier', 
+			'Contract' => array('Customer'), 
+			'EventualContract' => array('EventualContractBudget' => array('Customer')),
+			'InvoicesOc',
+			'SicsRejectionsReason'
+		);
+
+		// Quito InvoicesOc para la busqueda del estado Asociar Factura
+		if(isset($this->request->data['Search']['sic_status_id']) && $this->request->data['Search']['sic_status_id'] == 10) {
+			$this->paginate['contain'] = array(
+				'SicsMovement' => array('fields' => array('SicsMovement.id', 'SicsMovement.sic_id')),
+				'Supplier', 
+				'Contract' => array('Customer'), 
+				'EventualContract' => array('EventualContractBudget' => array('Customer')),
+				'SicsRejectionsReason'
+			);
+		}
+
+		$this->Sic->Behaviors->attach('Containable');
+		$this->set('items', $this->paginate());
+
+        // Contract DDL
+		$optionsContract = array(
+			'fields' => array('Contract.id', 'Contract.title'), 
+			'conditions' => array('Contract.robinson <> 1'), 
+			'order' => 'Contract.title');
+        if($role ==20) {$optionsContract['conditions'][count($optionsContract['conditions'])] = 'Contract.user_id =' . $authUserId;}
+        if(!empty($centerId)) {$optionsContract['conditions'][count($optionsContract['conditions'])] = 'Contract.center_id IN("' . implode(',', $centerId) . '")';}
+        $this->set('contracts', $this->Sic->Contract->find('list', $optionsContract));
+        
+        // EventualContract DDL
+        $optionsEventualContractBudget = array(
+            'fields' => array('EventualContractBudget.id', 'EventualContractBudget.full_contract'),
+            'conditions' => array('EventualContractBudget.contract_number <>' => "", 'EventualContractBudget.robinson <>' => 1));
+        if($role == 60) {
+            $optionsEventualContractBudget['conditions']['EventualContractBudget.jefeobra_id'] = $authUserId;
+        } else {
+         if(count($userCenters) > 0) {
+	            $optionsEventualContractBudget['conditions']['EventualContractBudget.center_id'] = $userCenters;
+	        } elseif(!empty($centerId)) {
+	            $optionsEventualContractBudget['conditions']['EventualContractBudget.center_id'] = $centerId;
+	        }        	
+        }
+        $eventualContracts = $this->Sic->EventualContract->EventualContractBudget->find('list', $optionsEventualContractBudget);
+        asort($eventualContracts);
+        $this->set('eventualContracts', $eventualContracts);
+
+        // DDL Unidades Operativas
+        $options = array(
+        	'fields' => array('Center.id', 'Center.title'), 
+        	'order' => 'Center.title', 
+        	'conditions' => array(
+        		'Center.robinson' => 0
+        	));
+        if(count($userCenters) > 0) {
+            $options['conditions']['Center.id'] = $userCenters;
+        }
+        $this->set('centers', $this->Sic->Center->find('list', $options) );	
+		$this->set( 'suppliers', $this->Sic->Supplier->getList(true));
+
+		// Locations
+        $this->loadModel('EventualContractBudget');
+		$optionsLocations = array(
+            'fields' => array('EventualContractBudget.location', 'EventualContractBudget.location'), 
+            'conditions' => array('EventualContractBudget.location <>' => "", 'EventualContractBudget.location <>' => 0));
+        if(count($userCenters) > 0) {
+            $optionsLocations['conditions']['EventualContractBudget.center_id'] = $userCenters;
+        } elseif(!empty($centerId)) {
+            $optionsLocations['conditions']['EventualContractBudget.center_id'] = $centerId;
+        }
+        $locations = $this->EventualContractBudget->find('list', $optionsLocations);
+        //array_unique($locations);
+        asort($locations);
+		$this->set('locations', $locations);
+
+
+		// Parche para poder ver comprobantes de pago
+		// Traigo Facturas Abonadas Ordenadas por Proveedores
+		$this->loadModel('InvoicesOc');
+		$invoicesOcPaid = $this->InvoicesOc->find('list', array(
+			'fields' => array('id', 'supplier_id'),
+			'conditions' => array('invoice_oc_ab_status_id' => 2),
+			'order' => array('supplier_id')
+		));
+		$invoicesOcPaidList = '';
+		foreach($invoicesOcPaid as $iopKey => $iopVal) {
+			$invoicesOcPaidList[$iopVal][] = $iopKey; 
+		}
+		$this->set('invoicesOcPaidList', $invoicesOcPaidList);
+		// Fin de Facturas Abonadas Ordenadas por Proveedores	
+
+		// Responsable (cualquier usuario del sistema)
+		$options = array('fields' => array('PersonInCharge.id', 'PersonInCharge.first_name'), 'order' => 'PersonInCharge.first_name');
+		$this->set('people', $this->Sic->PersonInCharge->find('list', $options));
+        $this->loadModel('Item');
+        $categories = $this->Item->getCategoriesList();
+        $this->set('categories', $categories);
+        $this->set('authUserId', $authUserId);
+        $this->set('admUsersArray', $this->Sic->admUsersArray);
+        $this->set('userAdm', $userAdm);
+        $this->loadModel('User');
+        $this->set('users', $this->User->find('list', array('fields' => array('User.id', 'User.first_name'))));
+        $this->set('jo', $this->User->find('list', array(
+        	'fields' => array('User.id', 'User.first_name'), 
+        	'conditions' => array('User.role = 60', 'User.active' => 1), 
+        	'order' => array('User.first_name'))));
+        $this->set('js', $this->User->find('list', array(
+        	'fields' => array('User.id', 'User.first_name'), 
+        	'conditions' => array('User.role = 20', 'User.active' => 1), 
+        	'order' => array('User.first_name'))));
+		$this->backUrl = true;
+		$this->set('_rejections_reasons', $this->_rejections_reasons);
+		$this->set('model', $this->modelClass);
+		$this->set('model_url', $this->modelKey);
+		$this->set('controller', $this->request->params['controller']);
+
+		$renderTemplate = 'admin_index';
+		switch($type){
+            case 'ff': $renderTemplate = 'admin_index_ff'; break;
+            case 'mo': $renderTemplate = 'admin_index_mo'; break;
+		}
+		$this->render($renderTemplate);
+	}
+	
+	public function admin_edit( $id = false ) {
+
+		// finanzas, compras y gerencia
+		// $this->checkLevel( array(30,40,50) );
+
+		$role = $this->Auth->user('role');
+        $authUserId = $this->Auth->user('id');
+		$this->set('title_for_layout', 'Items');
+		$this->set('_nav', "sics");
+		$this->set('_nav_sub', "edit");
+		$this->set('loadJQueryUI', true);
+		$this->set('role', $role);
+		$this->helpers[] = 'Uploader';
+        
+        // Info completa de UO
+        $this->loadModel('UsersCenter');
+        $this->loadModel('OperationUnit');
+        $this->loadModel('UsersOperationUnit');
+        $operarionUnitsInfo = $this->UsersOperationUnit->getOperationUnitsInfo(
+        	$this->UsersCenter, $this->OperationUnit, $this->Sic->Center, $authUserId);
+
+        $userCenters = $operarionUnitsInfo['userCenters'];
+
+        $this->set('userCenters', $userCenters);
+        $this->set('centersGT', $operarionUnitsInfo['centersGT']);
+        $this->set('centersTO', $operarionUnitsInfo['centersTO']);
+        $this->set('usersOperationUnit', $operarionUnitsInfo['usersOperationUnit']);
+        $this->set('operationCentersUnits', $operarionUnitsInfo['operationCentersUnits']);
+        $this->set('operationUnits', $operarionUnitsInfo['operationUnits']);
+
+        $operationUnitsAll = $this->OperationUnit->find('list');
+        $this->set('operationUnitsAll', $operationUnitsAll);
+        // Fin de Info de UO
+
+		// parche FF
+		// tipo
+		if( $this->passedArgs['type']){
+			$this->Session->write('App.Sic.type', $this->passedArgs['type']);
+		}elseif(!$this->Session->check('App.Sic.type')){
+			$this->Session->write('App.Sic.type', 'sic');
+		}
+
+		$type = $this->Session->read('App.Sic.type');
+		switch( $type){
+			case 'sic':
+				$this->set('_nav', "sics");
+				$this->set('_nav_sub', "edit");
+				$this->set('editTitle', 'SIC');
+				$theme = 'admin_edit';
+				break;
+			case 'ff': // fondo fijo
+				$this->set('_nav', "ff");
+				$this->set('_nav_sub', "edit");
+				$this->set('editTitle', 'Fondo Fijo');
+				$theme = 'admin_edit_ff';
+				// remuevo las validaciones
+				unset( $this->Sic->validate['supplier_id']);
+				unset( $this->Sic->validate['contract_type_id']);
+				$this->Sic->validate['total'] = array( 'required' => array('rule' => 'notEmpty'));
+				// saque el person in charge de aca
+				// $this->Sic->validate['person_in_charge'] = array( 'required' => array('rule' => 'notEmpty'));
+				// tipo forzado
+				$this->request->data[$this->modelClass]['type_id'] = 3;
+				break;
+			case 'mo': // fondo fijo
+				$this->set('_nav', "mo");
+				$this->set('_nav_sub', "edit");
+				$this->set('editTitle', 'Mano de Obra');
+				$theme = 'admin_edit_mo';
+				// remuevo las validaciones
+				unset( $this->Sic->validate['supplier_id']);
+				unset( $this->Sic->validate['contract_type_id']);
+				$this->Sic->validate['total'] = array( 'required' => array('rule' => 'notEmpty'));
+				// saque el person in charge de aca
+				// $this->Sic->validate['person_in_charge'] = array( 'required' => array('rule' => 'notEmpty'));
+				// tipo forzado
+				$this->request->data[$this->modelClass]['type_id'] = 20;
+				break;
+		}
+		
+		if ($this->request->is('post')||$this->request->is('put')) {
+
+			if(empty($this->request->data['Sic']['center_id'])) {
+				if($this->request->data['Sic']['contract_type_id'] == 1) {
+					// Eventual
+					$this->loadModel('EventualContractBudget');
+					$contract = $this->EventualContractBudget->read(null, $this->request->data['Sic']['eventual_contract_id']);
+					$this->request->data['Sic']['center_id'] = $contract['EventualContractBudget']['center_id'];
+
+				} elseif($this->request->data['Sic']['contract_type_id'] == 0) {
+					// Mantenimiento
+					$this->loadModel('Contract');
+					$contract = $this->Contract->read(null, $this->request->data['Sic']['contract_id']);
+					$this->request->data['Sic']['center_id'] = $contract['Contract']['center_id'];
+				}
+			}
+
+			if(empty($this->request->data['Sic']['operation_unit_id'])) {
+				$this->request->data['Sic']['operation_unit_id'] = 0;
+			}
+			$this->request->data[ $this->modelClass ]['iva'] = 21;//****
+			// me aseguro que nadie quiera hacerse el vivo cambiando el estado
+			if( isset($this->request->data[$this->modelClass]['status_id']))unset($this->request->data[$this->modelClass]['status_id']);
+
+			if(!empty($this->request->data[ $this->modelClass ]['date_of'])){
+				$date = explode('-', $this->request->data[ $this->modelClass ]['date_of']);
+				$this->request->data[ $this->modelClass ]['date_of'] = $date[2].'-'.$date[1].'-'.$date[0];
+			}
+
+			if(!empty($this->request->data[ $this->modelClass ]['date_delivery'])){
+				$date = explode('-', $this->request->data[ $this->modelClass ]['date_delivery']);
+				$this->request->data[ $this->modelClass ]['date_delivery'] = $date[2].'-'.$date[1].'-'.$date[0];
+			}
+			
+			if(!empty($this->request->data[ $this->modelClass ]['date_invoice'])){
+				$date = explode('-', $this->request->data[ $this->modelClass ]['date_invoice']);
+				$this->request->data[ $this->modelClass ]['date_invoice'] = $date[2].'-'.$date[1].'-'.$date[0];
+			}
+			
+			// parche FF
+			if($type == 'ff') {
+                if($this->request->data['Sic']['total'] <= $this->Sic->amountJS) {
+                	// JS
+                    $this->request->data['Sic']['required_10']  = 0;
+                    $this->request->data['Sic']['required_20']  = 1;
+                    $this->request->data['Sic']['required_30']  = 0;
+                    $this->request->data['Sic']['required_40']  = 0;
+                    $this->request->data['Sic']['required_50']  = 0;
+                    $this->request->data['Sic']['required_90']  = 0;
+                    $this->request->data['Sic']['required_100'] = 0;
+
+                } elseif($this->request->data['Sic']['total'] >= $this->Sic->amountJS && $this->request->data['Sic']['total'] < $this->Sic->amountCO) {
+                	// CO
+                    $this->request->data['Sic']['required_10']  = 0;
+                    $this->request->data['Sic']['required_20']  = 1;
+                    $this->request->data['Sic']['required_30']  = 1;
+                    $this->request->data['Sic']['required_40']  = 0;
+                    $this->request->data['Sic']['required_50']  = 0;
+                    $this->request->data['Sic']['required_90']  = 0;
+                    $this->request->data['Sic']['required_100'] = 0;
+
+                } elseif($this->request->data['Sic']['total'] >= $this->Sic->amountCO && $this->request->data['Sic']['total'] < $this->Sic->amountGT) {
+                    // GT, TO
+                    $this->request->data['Sic']['required_10'] = 0;
+                    $this->request->data['Sic']['required_20'] = 1;
+                    $this->request->data['Sic']['required_30'] = 0;
+                    $this->request->data['Sic']['required_40'] = 0;
+                    $this->request->data['Sic']['required_50'] = 0;
+                    $this->request->data['Sic']['required_90'] = 1;
+                    if($this->request->data['Sic']['contract_type_id'] == 1) {
+                        $this->request->data['Sic']['required_100'] = 0;
+                    } else {
+                        $this->request->data['Sic']['required_100'] = 1;
+                    }
+
+                } elseif($this->request->data['Sic']['total'] >= $this->Sic->amountGT) {
+
+                    $this->request->data['Sic']['required_10'] = 0;
+                    $this->request->data['Sic']['required_20'] = 1;
+                    $this->request->data['Sic']['required_30'] = 0;
+                    $this->request->data['Sic']['required_40'] = 0;
+                    $this->request->data['Sic']['required_50'] = 1;
+                    $this->request->data['Sic']['required_90'] = 1;
+                    if($this->request->data['Sic']['contract_type_id'] == 1) {
+                        $this->request->data['Sic']['required_100'] = 1;
+                    } else {
+                        $this->request->data['Sic']['required_100'] = 0;
+                    }
+
+                }
+            }
+			if($type == 'mo') {
+                $this->request->data['Sic']['required_10'] = 0;
+                $this->request->data['Sic']['required_20'] = 1;
+                $this->request->data['Sic']['required_30'] = 0;
+                $this->request->data['Sic']['required_40'] = 0;
+                $this->request->data['Sic']['required_50'] = 0;
+                $this->request->data['Sic']['required_90'] = 0;
+                $this->request->data['Sic']['required_100'] = 0;
+            }
+
+            // si el tipo de contrato es nulo, asumo que el contrato eventual es cero
+			if(empty($this->request->data[$this->modelClass]['contract_type_id'])) {
+                $this->request->data[$this->modelClass]['eventual_contract_id'] = 0;
+                $this->request->data[$this->modelClass]['contract_type_id'] = 0;
+            } else {
+                if($this->request->data[$this->modelClass]['contract_type_id'] == 1) {
+                    $this->request->data[$this->modelClass]['contract_id'] = 0; // Elegi contrato eventual
+                } else {
+                    $this->request->data[$this->modelClass]['eventual_contract_id'] = 0; // Elegi contrato clasico
+                }
+            }
+
+            // ------------------------------------------------------------
+
+			// auditoría
+			$this->request->data[$this->modelClass]['log_user_id'] = $this->Session->read('Auth.User.id');
+
+			$this->Sic->set($this->request->data);
+
+			if( $this->Sic->validates()) {
+
+				// Validaciones OK, hago cosas necesarias antes del insert
+				if(isset($this->request->data[$this->modelClass]['manager_id']) && $this->request->data[$this->modelClass]['manager_id'] == 'new_manager'){
+					// Creo el nuevo manager
+					$data = array(
+						'eventual_contract_id' => $this->request->data[$this->modelClass]['eventual_contract_id'],
+						'full_name'=> $this->request->data[$this->modelClass]['manager_full_name']
+					);
+					$result = $this->Sic->Manager->save($data);
+					if($result){
+						// sobreescribo el manager con el nuevo creado
+						$this->Sic->set('manager_id', $result['Manager']['id']);
+					}
+				}
+
+				if($this->Sic->save()){
+					$this->Session->setFlash('<a class="close" data-dismiss="alert" href="#">×</a> '. __("Data has been saved successfully", true), 'default', array( 'class' => 'alert alert-success') );
+					$this->admin_back( array('action' => 'index') );
+				}
+			}
+			
+		} elseif(!empty($id) ) {
+			$selectedSic = $this->Sic->read(null, $id);
+
+			// si es una sic y esta aprobado por un perfil superior al AD no se puede editar
+			// if(in_array($selectedSic['Sic']['type_id'], array(1, 2, 4)) && ($selectedSic['Sic']['closed'] == 1 || $selectedSic['Sic']['check_20'] == 1 || $selectedSic['Sic']['check_30'] == 1 || $selectedSic['Sic']['check_50'] == 1 || $selectedSic['Sic']['check_90'] == 1 || $selectedSic['Sic']['check_100'] == 1)){
+			// 	$this->Session->setFlash( 'La solicitud aprobada por un perfil superior no puede ser editada', 'default', array('class' => 'alert alert-error'));
+			// 	$this->redirect( array('action' => 'index' ));
+			// }			
+
+			// si es fondo fijo y esta aprobado no se puede editar
+			if( $selectedSic['Sic']['type_id'] == 3 && $selectedSic['Sic']['closed'] == 1 ){
+				$this->Session->setFlash( 'La solicitud aprobada no puede ser editada', 'default', array('class' => 'alert alert-error'));
+				$this->redirect( array('action' => 'index' ));
+			}
+			// fin fondo fijos
+			$this->request->data = $selectedSic;
+
+	        if($selectedSic['Sic']['operation_unit_id'] == 0) {
+	        	$operationUnitCenters = $this->OperationUnit->getUnitByCenter($this->Sic->Center->find('all'));
+	        	foreach($operationUnitCenters as $unitId => $unitCenters) {
+	        		if(in_array($selectedSic['Sic']['center_id'], $unitCenters)) {
+	        			$this->request->data['Sic']['operation_unit_id'] = $unitId;	
+	        		}
+	        	}
+	        }
+
+            // Calificaciones de compra
+            $this->loadModel('RatingSupplier');
+            $rating = $this->RatingSupplier->getSupplierRating($selectedSic['Sic']['supplier_id']);
+            $this->set('ratingSupplier', $rating['ratingSupplier']);
+            $this->set('deliveryYes', $rating['deliveryYes']);
+            $this->set('deliveryNo', $rating['deliveryNo']);
+            $this->set('satisfaction', $rating['satisfaction']);
+            $this->set('deliveryYesSixMonth', $rating['deliveryYesSixMonth']);
+            $this->set('deliveryNoSixMonth', $rating['deliveryNoSixMonth']);
+            $this->set('satisfactionSixMonth', $rating['satisfactionSixMonth']);
+            $this->set('satisfactionColor', $rating['satisfactionColor']);
+            $this->set('satisfactionColorSixMonth', $rating['satisfactionColorSixMonth']);
+		}
+
+		$this->set('model', $this->modelClass);
+		$this->set('model_url', $this->modelKey);
+		$this->set('controller', $this->request->params['controller']);
+		$this->set( 'suppliers', $this->Sic->Supplier->getList(true));
+        
+		$options = array(
+			'fields' => array( 'Center.id', 'Center.title'),
+			'order' => 'Center.title',
+			'conditions' => array(
+				'Center.robinson <>' => 1
+				)
+			);
+
+		// Unidades operativas
+        if(count($userCenters) > 0) {
+            $options['conditions']['Center.id'] = $userCenters;
+        } else {
+            $options['conditions']['Center.id'] = $this->Auth->user('center_id');
+        }
+        $centersList = $this->Sic->Center->find('list', $options);
+		$this->set('centers', $centersList);
+
+		$contracts = '';
+		//$contracts = $this->Sic->Contract->getSuperList($userCenters);
+        $this->set('contracts', $contracts);
+
+        $evtContractList = '';
+        // $evtOptions = array(
+        //     'fields' => array('EventualContractBudget.id', 'EventualContractBudget.contract_number', 'EventualContractBudget.title', 'EventualContractBudget.center_id'), 
+        //     'order' => array('EventualContractBudget.contract_number DESC'),
+        //     'conditions' => array(
+        //         'EventualContractBudget.full_contract !=' => 0,
+        //         'EventualContractBudget.state_id' => 3,
+        //         'EventualContractBudget.robinson <>' => 1,
+        //         'EventualContractBudget.full_contract !=' => ""
+        //     ),
+        //     'order' => 'EventualContractBudget.center_id');
+        // if ($role == 60) {
+        //     $evtOptions['conditions']['EventualContractBudget.jefeobra_id'] = $this->Auth->user('id');
+        // } else  {
+        //     if(count($userCenters) > 0) {
+        //         $evtOptions['conditions']['EventualContractBudget.center_id'] = $userCenters;
+        //     } else {
+        //         $evtOptions['conditions']['EventualContractBudget.center_id'] = $this->Auth->user('center_id');
+        //     }            
+        // }
+        // $evtContracts = $this->Sic->EventualContract->EventualContractBudget->find('all', $evtOptions);
+        // $evtContractList = array();
+        // foreach($evtContracts as $evtContract) {
+        //     $evtContractList[$evtContract['EventualContractBudget']['id']] = $centersList[$evtContract['EventualContractBudget']['center_id']] .' - '. $evtContract['EventualContractBudget']['contract_number'] .' - '. $evtContract['EventualContractBudget']['title'];
+        // }
+        // asort($evtContractList);
+        $this->set('eventualContracts', $evtContractList);
+
+		// categorías
+		//$this->set('categories', $this->Item->Category->generateTreeList( array(), null, null, '→'));
+
+		//  no tengo en cuenta el tema del rol para poder editar, todos pueden
+		
+		if( !empty($id) && in_array( $role, array(10,20,60)) ){
+			$this->set('item', $selectedSic);
+			// sólo pueden editar menos
+			// $this->render('admin_edit_light');
+		}
+
+		// Store Managers (jefe de sitios)
+		$options = array(
+			'fields' => array( 'StoreManager.id', 'StoreManager.first_name'),
+			'order' => 'StoreManager.first_name',
+			'conditions' => array(
+				'StoreManager.active' => 1
+			)
+		);
+		$this->set('store_managers', $this->Sic->StoreManager->find('list', $options));	
+		// fin de managers	
+
+		// Responsable (cualquier usuario del sistema)
+		$options = array(
+			'fields' => array( 'PersonInCharge.id', 'PersonInCharge.first_name'),
+			'order' => 'PersonInCharge.first_name',
+			'conditions' => array(
+				//'StoreManager.role' => 20
+			)
+		);
+		$this->set('people', $this->Sic->PersonInCharge->find('list', $options));	
+		// fin de personas
+
+		// chequeo el rol del usuario, si ha aprobado uno de rol mayor no puede editar, sólo muestro
+		if( isset($selectedSic) && $selectedSic['Sic']['closed'] != 1){
+			$role = $this->Auth->user('role');
+			$levels = array(10,20,30,40,50,60);
+			foreach( $levels as $level){
+				if( isset( $selectedSic['Sic']['check_'.$level]) && $selectedSic['Sic']['check_'.$level] == 1 && $level > $role ){
+					// sólo muestra la vista
+					$this->render('admin_edit_light');	
+				}
+			}
+		}
+		// fin de chequeo de roles
+        
+		// categorías
+		$this->loadModel('Category');
+		$this->set( 'categories', $this->Category->generateTreeList( array(), null, null, '→') );        
+		
+		$this->render($theme);
+		
+	}
+
+	public function admin_view($id = false) {
+
+        $this->set('title_for_layout', 'Items');
+        $this->set('_nav', "sics");
+        $this->set('_nav_sub', "edit");
+
+        $this->Sic->recursive = 2;
+        $sic = $this->Sic->read(null, $id);
+        $role = $this->Auth->user('role');
+//        if (in_array($role, array(10, 20, 60))) {
+//            $center_id = $this->Auth->user('center_id'); // sólo puede ver los de su centro
+//            if ($center_id != $sic['Sic']['center_id']) {
+//                $this->Session->setFlash('La orden no pertenece a su centro', 'default', array('class' => 'alert alert-error'));
+//                $this->redirect(array('action' => 'index'));
+//            }
+//        }
+        $this->set('item', $sic);
+    }
+
+    public function admin_switch($req = '', $id = '') {
+        $this->autoRender = false;
+        $loggedUserId = $this->Auth->user('id');
+        if(!empty($req) && !empty($id)) {
+        // Unidades operativos asociados
+            $this->loadModel('UsersCenter');
+            $centersGT = $this->UsersCenter->getCentersGT();
+            $centersTO = $this->UsersCenter->getCentersTO();
+            $centersAdmin = $this->Sic->Center->getCentersByOperationUnit(1);            
+            
+            $role = $this->Auth->user('role');
+            $username = $this->Auth->user('username');
+            // JS y JO reemplaza uno a otro dependiendo de tipo de contrato
+            $role = $role == 60 ? 20 : $role;
+            if($req == $role) {
+                $type = $this->Session->read('App.Sic.type');
+                $this->Sic->recursive = -1;
+                $sic = $this->Sic->read(null, $id);
+                if($sic) {
+//                    if($sic['Sic']['closed'] != 1) {
+                    	$this->Sic->authorizationLevelsUpdate($id, $role, 'switch', $centersGT, $centersTO, $centersAdmin);
+                    	$this->saveLog($id, $loggedUserId, $role);
+                    	$this->admin_back(array('action' => 'index'));
+                        //$this->Email->send($to, $body, $subject);
+//                    } else {
+//                        $this->Session->setFlash('La SIC ya se encuentra cerrada', 'default', array('class' => 'alert alert-error'));
+//                        $this->admin_back(array('action' => 'index'));
+//                    }
+                } else {
+                    $this->Session->setFlash('No se encuentra la SIC', 'default', array('class' => 'alert alert-error'));
+                    $this->admin_back(array('action' => 'index'));
+                }
+            } else {
+                $this->Session->setFlash('El usuario no cuenta con los permisos necesarios', 'default', array('class' => 'alert alert-error'));
+                $this->admin_back(array('action' => 'index'));
+            }
+        } else {
+            $this->Session->setFlash('Debe indicar todos los parámetros', 'default', array('class' => 'alert alert-error'));
+            $this->admin_back(array('action' => 'index'));
+        }
+    }
+
+    public function admin_delete() {
+
+		//$this->checkLevel(array(40, 50, 90));
+		$role = $this->Auth->user('role');
+		foreach($this->request->data['Index'] as $id){
+			if(!empty($id) && $id != 0 && $id != 'all'){
+				$sic = $this->Sic->read( null, $id);
+				if( $sic){					
+					$deleteable = false;
+					if(in_array($role, array(40, 50, 90))){
+						$deleteable = true;
+					}else{
+//						$deleteable = true;
+//						//alguno posterior al el chequeo
+//						for( $a=$role; $a < 90; $a+=10){
+//							if( $sic['Sic']['check_'.$a] == 1){
+//								$deleteable = false;
+//							}
+//						}
+                        $deleteable = false;
+					}
+
+					if( $deleteable){
+						$this->Sic->id = $id;
+						$this->Sic->saveField('robinson', 1);
+						// luego de ocultarla debería recalcular contrato
+						// trae límites y totales del contrato relacionado
+						$limits = $this->Sic->Contract->getLimits( $sic['Sic']['contract_id']);
+						// le paso los límites para ver como agrupa por categoría
+						$totals = $this->Sic->Contract->getTotals( $sic['Sic']['contract_id'], $limits);						
+					}else{
+						// alguno no se pudo eliminar
+						//$this->Session->setFlash( 'No se pudo eliminar alguna SIC, ya que un usuario superior la ha aprobado', 'default', array('class' => 'alert alert-error'));
+                        $this->Session->setFlash( 'Su usuario no cuenta con permisos para eliminar la SIC', 'default', array('class' => 'alert alert-error'));
+					}
+
+				}
+			}
+		}
+		$this->admin_back( array('action' => 'index'));
+
+	}
+
+	public function admin_detail( $sic_id = '') {		
+		
+		$this->set('title_for_layout', 'SICs');
+
+		// parche FF
+		$type = $this->Session->read('App.Sic.type');
+		switch( $type){
+			case 'sic':
+				$this->set('_nav', "sics");
+				$this->set('_nav_sub', "index");
+				$this->set('editTitle', 'SIC');
+				break;
+			case 'ff': // fondo fijo
+				$this->set('_nav', "ff");
+				$this->set('_nav_sub', "index");
+				$this->set('editTitle', 'Fondo Fijo');
+				break;
+		}
+
+		// parent
+		if(empty($sic_id)){
+			$this->Session->setFlash( 'Debe indicar ID', 'default', array('class' => 'alert alert-error'));
+			$this->redirect(array('action' => 'index'));
+		}
+
+		$options = array(
+			'conditions' => array(
+				'Sic.id' => $sic_id
+			),
+			'contain' => array(
+				'Supplier',
+				'Contract' => array('Customer'),
+				'EventualContract' => array('EventualContractBudget' => array('Customer')) 
+			)
+		);
+
+		$this->Sic->Behaviors->attach('Containable');
+		
+		$sic = $this->Sic->find('first', $options);
+
+
+		// chequeo el rol del usuario, si ha aprobado uno de rol mayor no puede editar
+		if( $sic['Sic']['closed'] != 1){
+			$role = $this->Auth->user('role');
+			$levels = array(10,20,30,40,50);
+			foreach( $levels as $level){
+				if( isset( $sic['Sic']['check_'.$level]) && $sic['Sic']['check_'.$level] == 1 && $level > $role ){
+					$sic['Sic']['closed'] = 1; // la marco como cerrada		
+					$sic['Sic']['as_closed'] = 1; // la marco como cerrada		
+				}
+			}
+		}
+		// fin de chequeo de roles
+		$this->set( 'sic', $sic);
+		
+		// seteo el contrato que estoy manejando
+		$this->Session->write('App.SicContractId', $sic['Sic']['contract_id'] );
+
+		//$this->backUrl = true;
+
+		$this->set('model', 'SicsItem');
+		$this->set('model_url', $this->modelKey);
+		$this->set('controller', $this->request->params['controller']);
+                
+		// categorías
+		$this->loadModel('Category');
+        $categories = $this->Category->generateTreeList( array(), null, null, '→');
+        
+        // Suppliers Categories
+        $this->loadModel('SuppliersCategories');
+        $suppliersCategories = $this->SuppliersCategories->find('all', array(
+            'conditions' => array('SuppliersCategories.supplier_id' => $sic['Sic']['supplier_id'])));
+        $suppliersCategoriesList = '';
+        $suppliersCategoriesParentsList = '';
+        if(count($suppliersCategories) > 0) {
+            foreach($suppliersCategories as $sc) {
+                $suppliersCategoriesList[] = $sc['SuppliersCategories']['category_id'];
+                $suppliersCategoriesParentsList[] = $sc['SuppliersCategories']['parent_id'];
+            }
+            foreach($categories as $catKey => &$catVal) {
+	            if($sic['Sic']['supplier_id'] == 15048 && $catKey != 171) {
+	            	unset($categories[$catKey]);
+	            } elseif($sic['Sic']['supplier_id'] == 9528 && $catKey != 158) {
+	            	unset($categories[$catKey]);
+	            } elseif(!in_array($catKey, $suppliersCategoriesParentsList) && !in_array($catKey, $suppliersCategoriesList)) {
+                     unset($categories[$catKey]);
+                }
+            }
+        }
+
+        $this->set('suppliersCategories', $suppliersCategoriesList);        
+		$this->set( 'categories', $categories);
+		$this->set('payconditions', $this->Sic->Supplier->getPayConditions() );
+
+        $this->loadModel('User');
+        $systemUsers = $this->User->find('list', array(
+            'fields' => array('User.id', 'User.first_name'),
+            'conditions' => array(
+                'User.active' => 1,
+                'NOT' => array(
+                    'User.id' => array(2, 17, 23, 31, 35, 40, 43, 44, 48, 49, 53, 55, 63, 73,
+                        78, 79, 80, 86, 89, 91, 92, 98, 99, 101, 103, 105, 106, 107, 112,
+                        /* Usuarios de Victoria Mangieri */
+                        46, 84, 83, 82, 87, 70, 69, 68, 66, 93, 97
+                    )))));
+
+        $this->loadModel('Person');
+        // composite_id para no tener conflicto con usuarios de systema que tienen mismo id
+        $technicals = $this->Person->find('list', array('fields' => array('Person.composite_id', 'Person.full_name')));
+
+        $this->set('systemUsers', $systemUsers);
+        $this->set('technicals', $technicals);
+        $this->set('itemsUser', $this->User->getUsersItems($systemUsers, $technicals));
+
+        $this->loadModel('Van');
+        $this->set('vehicles', $this->Van->getList());
+
+        // Calificaciones de compra
+        $this->loadModel('RatingSupplier');
+        $rating = $this->RatingSupplier->getSupplierRating($sic['Sic']['supplier_id']);
+        $this->set('ratingSupplier', $rating['ratingSupplier']);
+        $this->set('deliveryYes', $rating['deliveryYes']);
+        $this->set('deliveryNo', $rating['deliveryNo']);
+        $this->set('satisfaction', $rating['satisfaction']);
+        $this->set('deliveryYesSixMonth', $rating['deliveryYesSixMonth']);
+        $this->set('deliveryNoSixMonth', $rating['deliveryNoSixMonth']);
+        $this->set('satisfactionSixMonth', $rating['satisfactionSixMonth']);
+        $this->set('satisfactionColor', $rating['satisfactionColor']);
+        $this->set('satisfactionColorSixMonth', $rating['satisfactionColorSixMonth']);        
+	}	
+
+	/**
+	 * Rendir una solicitud de Fondo fijo
+	 */
+	public function admin_rendir( $sic_id = '') {
+		
+		$this->set('title_for_layout', 'SICs');
+
+		// parche FF
+		$this->set('_nav', "ff");
+		$this->set('_nav_sub', "index");
+		$this->set('editTitle', 'Fondo Fijo');
+
+		// parent
+		if(empty($sic_id)){
+			$this->Session->setFlash( 'Debe indicar ID', 'default', array('class' => 'alert alert-error'));
+			$this->redirect(array('action' => 'index'));
+		}		
+
+		$parent_id = $this->Session->read('App.SicId');
+
+		$options = array(
+			'conditions' => array(
+				'Sic.id' => $parent_id
+				),
+			'contain' => array(
+				'Supplier',
+				'Contract' => array('Customer'),
+				'EventualContract' => array('EventualContractBudget' => array('Customer')),
+				'Manager',
+				'StoreManager'
+				)
+			);
+
+		$this->Sic->Behaviors->attach('Containable');
+		
+		$sic = $this->Sic->find('first', $options);
+
+		$this->set( 'sic', $sic);
+		
+		// seteo el contrato que estoy manejando
+		// $this->Session->write('App.SicContractId', $sic['Sic']['contract_id'] );
+
+		//$this->backUrl = true;
+
+		$this->set('model', 'SicsItem');
+		$this->set('model_url', $this->modelKey);
+		$this->set('controller', $this->request->params['controller']);
+
+		// categorías
+		$this->loadModel('Category');
+		$this->set( 'categories', $this->Category->generateTreeList( array(), null, null, '→') );
+
+		$this->set('payconditions', $this->Sic->Supplier->getPayConditions() );
+
+		//pr( Cache::read('contract_totals_1'));
+
+
+	}
+
+	public function admin_detail_list( $sic_id = '') {
+
+		$this->autoRender = false;
+		$authUserId = $this->Auth->user('id');
+		$this->Sic->recursive = -1;
+		$parent = $this->Sic->read(null, $sic_id);
+		if(!$parent){
+			$data = array( 'data' => array(), 'error' => 'Sic ID ' . $sic_id . ' inválido' );
+			die( json_encode( $data ) );	
+		}
+		$this->loadModel('Category');
+		$parent_id = $parent['Sic']['id'];
+		$options = array(
+			'conditions' => array(
+				'SicsItem.sic_id is NOT NULL',
+				'SicsItem.sic_id' => $parent_id
+			),
+			'contain' => array(
+				'Item'
+			)
+		);
+        
+        // Unidades operativos asociados
+        $this->loadModel('UsersCenter');
+        $centersGT = $this->UsersCenter->getCentersGT();
+        $centersTO = $this->UsersCenter->getCentersTO();
+        $centersAdmin = $this->Sic->Center->getCentersByOperationUnit(1);
+
+		$this->Sic->SicsItem->Behaviors->attach('Containable');
+		$returnDetails = array();
+		$details = $this->Sic->SicsItem->find('all', $options);
+		if( $details){
+			$returnDetails['data'] = array();
+			$total = 0;
+			foreach( $details as $detail){
+                if($detail['SicsItem']['robinson']==1) {
+                    continue;
+                }
+				$iva = (isset($detail['SicsItem']['item_iva']) && !is_null($detail['SicsItem']['item_iva'])) ? number_format( $detail['SicsItem']['item_iva'], 2, '.', '') : number_format( $parent['Sic']['iva'], 2, ',', '.');
+				$returnDetails['data'][ $detail['SicsItem']['id'] ]['id'] = $detail['SicsItem']['id'];
+				$returnDetails['data'][ $detail['SicsItem']['id'] ]['title'] = ($detail['SicsItem']['detail'])?$detail['SicsItem']['detail']:$detail['Item']['title'];
+				$returnDetails['data'][ $detail['SicsItem']['id'] ]['path'] = $detail['Item']['path'];
+				$returnDetails['data'][ $detail['SicsItem']['id'] ]['amount'] = $detail['SicsItem']['amount'];
+				$returnDetails['data'][ $detail['SicsItem']['id'] ]['unit_price'] = number_format( $detail['SicsItem']['unit_price'], 2, ',', '.');
+				$returnDetails['data'][ $detail['SicsItem']['id'] ]['item_iva'] = $iva;
+				$returnDetails['data'][ $detail['SicsItem']['id'] ]['item_iva_total'] = number_format( ($detail['SicsItem']['total_price'] * $iva)/100, 2, ',', '.');
+				$returnDetails['data'][ $detail['SicsItem']['id'] ]['total_price'] = number_format( $detail['SicsItem']['total_price'], 2, ',', '.');
+				$returnDetails['data'][ $detail['SicsItem']['id'] ]['classname'] = ($detail['SicsItem']['robinson']==1)?'item-robinson':'';
+				// sumo sólo los que no estan "borrados"
+				if( $detail['SicsItem']['robinson'] != 1){
+					$total+=$detail['SicsItem']['total_price'];
+                    $totalIva += ($detail['SicsItem']['total_price'] * $iva) / 100;
+				}
+			}
+			$returnDetails['total'] = number_format( $total, 2, ',', '.');
+			$returnDetails['iva_total'] = number_format( $totalIva, 2, ',', '.');
+            $ivaOld = (isset($parent['Sic']['iva']) && $parent['Sic']['iva'] > 0) ? $parent['Sic']['iva'] : 0;
+            $returnDetails['iva_old'] = number_format( $ivaOld, 2, ',', '.');
+			$total_with_iva = $total + $totalIva;
+			$returnDetails['total_with_iva'] = number_format( $total_with_iva, 2, ',', '.');
+			// actualizo el total de la orden
+			$sic = $this->Sic->read(null, $parent_id);
+
+			if( $sic && $sic['Sic']['closed'] != 1){
+				$dataToUpdate = array(
+					'id' => $parent_id,
+                    'iva' => $parent['Sic']['iva'],
+					'total' => $total,
+					'iva_total' => $totalIva,
+					'total_with_iva' => $total_with_iva
+					);
+				$this->Sic->save( $dataToUpdate, false);
+                // de acuerdo al total son las validaciones necesarias (puede bajar o subir)
+				if($total < $this->Sic->amountAD){
+					// Se aprueba AD
+                    $dataToUpdate = array(
+                        'required_10' => 1, 
+                        'required_20' => 0, 
+                        'required_30' => 0, 
+                        'required_90' => 0,
+                        'required_100' => 0,
+                        'required_40' => 0, 
+                        'required_50' => 0, 
+                        'check_10' => $sic['Sic']['check_10'] == 0 ? 0 : $sic['Sic']['check_10'], 
+                        'check_20' => 0, 
+                        'check_30' => 0, 
+                        'check_90' => 0,
+                        'check_100' => 0,
+                        'check_40' => 0, 
+                        'check_50' => 0, 
+                        'checked_10' => $sic['Sic']['checked_10'] == 0 ? 0 : $sic['Sic']['checked_10'], 
+                        'checked_20' => 0, 
+                        'checked_30' => 0, 
+                        'checked_90' => 0,
+                        'checked_100' => 0,
+                        'checked_40' => 0, 
+                        'checked_50' => 0
+                    );
+                    $this->Sic->save($dataToUpdate, false);
+				} else if($total >= $this->Sic->amountAD && $total < $this->Sic->amountJS){
+                    // Se aprueba JS/JO
+                    $dataToUpdate = array(
+                        'required_10' => 1, 
+                        'required_20' => 1, 
+                        'required_30' => 0, 
+                        'required_90' => 0,
+                        'required_100' => 0,
+                        'required_40' => 0, 
+                        'required_50' => 0, 
+                        'check_10' => $sic['Sic']['check_10'] == 0 ? 0 : $sic['Sic']['check_10'], 
+                        'check_20' => $sic['Sic']['check_20'] == 0 ? 0 : $sic['Sic']['check_20'], 
+                        'check_30' => 0, 
+                        'check_90' => 0,
+                        'check_100' => 0,
+                        'check_40' => 0, 
+                        'check_50' => 0, 
+                        'checked_10' => $sic['Sic']['checked_10'] == 0 ? 0 : $sic['Sic']['checked_10'], 
+                        'checked_20' => $sic['Sic']['checked_20'] == 0 ? 0 : $sic['Sic']['checked_20'], 
+                        'checked_30' => 0, 
+                        'checked_90' => 0,
+                        'checked_100' => 0,
+                        'checked_40' => 0, 
+                        'checked_50' => 0 
+                    );
+                    $this->Sic->save($dataToUpdate, false);
+				} else if($total > $this->Sic->amountCO){
+				//} else if($total >= $this->Sic->amountJS && $total < $this->Sic->amountCO){
+                    // Se aprueba CO
+                    $dataToUpdate = array(
+                        'required_10' => 1, 
+                        'required_20' => 1, 
+                        'required_30' => 0, 
+                        'required_90' => 0,
+                        'required_100' => 0,
+                        'required_40' => 0,
+                        'required_50' => 0, 
+                        'check_10' => $sic['Sic']['check_10'] == 0 ? 0 : $sic['Sic']['check_10'], 
+                        'check_20' => $sic['Sic']['check_20'] == 0 ? 0 : $sic['Sic']['check_20'], 
+                        'check_30' => ($sic['Sic']['check_30'] == 1 && $sic['Sic']['contract_type_id'] == 1) ? 1 : 0, 
+                        'check_90' => 0,
+                        'check_100' => 0,
+                        'check_40' => 0,
+                        'check_50' => 0, 
+                        'checked_10' => $sic['Sic']['checked_10'] == 0 ? 0 : $sic['Sic']['checked_10'], 
+                        'checked_20' => $sic['Sic']['checked_20'] == 0 ? 0 : $sic['Sic']['checked_20'], 
+                        'checked_30' => $sic['Sic']['checked_30'] == 0 ? 0 : $sic['Sic']['checked_30'], 
+                        'checked_90' => $sic['Sic']['checked_90'] == 0 ? 0 : $sic['Sic']['checked_90'],
+                        'checked_40' => 0,
+                        'checked_100' => 0,
+                        'checked_50' => 0, 
+                        'checked_90' => 0
+                    );
+                    $this->Sic->save($dataToUpdate, false);
+				} else if($total >= $this->Sic->amountJS && $total < $this->Sic->amountGT){
+                    // Se aprueba GT
+                    $dataToUpdate = array(
+                        'required_10' => 1, 
+                        'required_20' => 1, 
+                        'required_30' => 0, 
+                        'required_90' => 1,
+                        'required_100' => 0,
+                        'required_40' => 0,
+                        'required_50' => 0, 
+                        'check_10' => $sic['Sic']['check_10'] == 0 ? 0 : $sic['Sic']['check_10'], 
+                        'check_20' => $sic['Sic']['check_20'] == 0 ? 0 : $sic['Sic']['check_20'], 
+                        'check_30' => $sic['Sic']['check_30'] == 0 ? 0 : $sic['Sic']['check_30'], 
+                        'check_90' => $sic['Sic']['check_90'] == 0 ? 0 : $sic['Sic']['check_90'],
+                        'check_100' => 0,
+                        'check_40' => 0,
+                        'check_50' => 0, 
+                        'checked_10' => $sic['Sic']['checked_10'] == 0 ? 0 : $sic['Sic']['checked_10'], 
+                        'checked_20' => $sic['Sic']['checked_20'] == 0 ? 0 : $sic['Sic']['checked_20'], 
+                        'checked_30' => $sic['Sic']['checked_30'] == 0 ? 0 : $sic['Sic']['checked_30'], 
+                        'checked_90' => $sic['Sic']['checked_90'] == 0 ? 0 : $sic['Sic']['checked_90'],
+                        'checked_40' => 0,
+                        'checked_100' => 0,
+                        'checked_50' => 0, 
+                        'checked_90' => 0
+                    );
+                    $this->Sic->save($dataToUpdate, false);
+				} else if($total >= $this->Sic->amountGT){
+                    // Se aprueba GO, FI
+                    $dataToUpdate = array(
+                        'required_10' => 1, 
+                        'required_20' => 1, 
+                        'required_30' => 0, 
+                        'required_90' => 1,
+                        'required_100' => 0,
+                        'required_40' => 0, 
+                        'required_50' => 1, 
+                        'check_10' => $sic['Sic']['check_10'] == 0 ? 0 : $sic['Sic']['check_10'], 
+                        'check_20' => $sic['Sic']['check_20'] == 0 ? 0 : $sic['Sic']['check_20'], 
+                        'check_30' => $sic['Sic']['check_30'] == 0 ? 0 : $sic['Sic']['check_30'], 
+                        'check_90' => $sic['Sic']['check_90'] == 0 ? 0 : $sic['Sic']['check_90'], 
+                        'check_100' => 0,
+                        'check_40' => 0, 
+                        'check_50' => $sic['Sic']['check_50'] == 0 ? 0 : $sic['Sic']['check_50'], 
+                        'checked_10' => $sic['Sic']['checked_10'] == 0 ? 0 : $sic['Sic']['checked_10'], 
+                        'checked_20' => $sic['Sic']['checked_20'] == 0 ? 0 : $sic['Sic']['checked_20'], 
+                        'checked_30' => $sic['Sic']['checked_30'] == 0 ? 0 : $sic['Sic']['checked_30'], 
+                        'checked_90' => $sic['Sic']['checked_90'] == 0 ? 0 : $sic['Sic']['checked_90'],
+                        'checked_100' => 0,
+                        'checked_40' => 0, 
+                        'checked_50' => $sic['Sic']['checked_50'] == 0 ? 0 : $sic['Sic']['checked_50']
+                    );
+                    $this->Sic->save($dataToUpdate, false);
+				}				
+				// end check de aprobaciones -----------------------------------------------
+
+				// devuevlo los totales del contrato relacionado
+				$returnDetails['limit_budget'] = 0;
+				$returnDetails['spent_budget'] = 0;
+				//if( $contract = $this->Sic->Contract->read(null, $sic['Sic']['contract_id'] ) ){
+				//	$returnDetails['limit_budget'] = $contract['Contract']['limit_budget'];
+				//	$returnDetails['spent_budget'] = $contract['Contract']['spent_budget'];
+				//}
+			
+			//**** Valido que sea un "contrato" para establecer los limites ****//
+			if($sic['Sic']['contract_type_id']==0){			
+				// busco ahora los limites totales y gastados del periodo
+				$period = $this->Sic->Contract->Period->getCurrent( $sic['Sic']['contract_id']);
+				if( $period){
+					$returnDetails['limit_budget'] = $period['Period']['limit_budget'];
+					$returnDetails['spent_budget'] = $period['Period']['spent_budget'];
+				}
+			}
+				// --
+			}
+		}
+
+		die( json_encode($returnDetails));
+	}
+    
+	public function admin_get_csv() {
+        $this->autoRender = false;
+        set_time_limit(0);
+        header("Content-type: application/vnd.ms-excel");
+        header("Content-disposition: attachment; filename=sics_export.csv");
+        header("Pragma: no-cache");
+        header("Expires: 0");
+        App::uses('TimeHelper', 'View/Helper');
+        $time = new TimeHelper(new View(null));
+
+		// si es administrativo de poonerle el filtro
+		$role = $this->Auth->user('role');
+        $authUserId = $this->Auth->user('id');
+        $joId = $this->Session->read('App.Sic.jefeobra_id');
+        $jsId = $this->Session->read('App.Sic.user_id');
+        
+        // Info completa de UO
+        $this->loadModel('UsersCenter');
+        $this->loadModel('OperationUnit');
+        $this->loadModel('UsersOperationUnit');
+        $operarionUnitsInfo = $this->UsersOperationUnit->getOperationUnitsInfo(
+        	$this->UsersCenter, $this->OperationUnit, $this->Sic->Center, $authUserId);
+
+        $userCenters = $operarionUnitsInfo['userCenters'];
+
+        $this->set('userCenters', $userCenters);
+        $this->set('centersGT', $operarionUnitsInfo['centersGT']);
+        $this->set('centersTO', $operarionUnitsInfo['centersTO']);
+        $this->set('usersOperationUnit', $operarionUnitsInfo['usersOperationUnit']);
+        $this->set('operationCentersUnits', $operarionUnitsInfo['operationCentersUnits']);
+        $this->set('operationUnits', $operarionUnitsInfo['operationUnits']);
+        // Fin de Info de UO
+                
+        if($role == 10 && (empty($joId) || empty($jsId))) {
+            if(empty($this->Session->read('App.Sic.center_id'))) {
+                if(count($userCenters) > 0) {
+                    $this->paginate['conditions']['Sic.center_id'] = $userCenters;
+                } else {
+                    $this->paginate['conditions']['Sic.center_id'] = $this->Auth->user('center_id');
+                }
+            }
+        }        
+        // Aprobado, Pendiente y Clidad
+		// if(isset($this->request->data['Search']['sic_status_id'])){
+		// 	$this->Session->write('App.Sic.sic_status_id', $this->request->data['Search']['sic_status_id']);
+		// }        
+
+		$this->applyFilters();
+        $centerId = $this->Session->read('App.Sic.center_id');
+        $locationTitle = $this->Session->read('App.Sic.location');
+        $eventualContractId = $this->Session->read('App.Sic.eventual_contract_id');
+        if($role == 60 || !empty($eventualContractId) || !empty($joId)) {
+            $this->paginate['joins'] = array(array('table' => 'eventual_contract_budgets', 'alias' => 'EventualContractBudget', 'type' => 'INNER', 'conditions' => array(array('Sic.eventual_contract_id = EventualContractBudget.id'))));
+            $this->paginate['conditions']['Sic.contract_type_id'] = 1;
+            if($role == 60) {
+                $this->paginate['conditions']['EventualContractBudget.jefeobra_id'] = $authUserId;
+                if(count($userCenters) > 0) {$this->paginate['conditions']['EventualContractBudget.center_id'] = $userCenters;}
+            }
+            if(!empty($joId)) {$this->paginate['conditions']['EventualContractBudget.jefeobra_id'] =  $joId;}
+            if(!empty($eventualContractId)) {$this->paginate['conditions']['EventualContractBudget.id'] = $eventualContractId;}
+		} elseif($role == 20) {
+            if(empty($centerId)) {
+                if(count($userCenters) > 0) {
+                    $this->paginate['conditions']['Sic.center_id'] = $userCenters;
+                } else {
+                    //$this->paginate['conditions']['Contract.user_id'] =  $authUserId;
+                    $this->paginate['conditions']['Sic.center_id'] = $this->Auth->user('center_id');
+                }                
+            }
+            $this->paginate['conditions']['Sic.contract_type_id'] = 0;                
+		}
+        if(!empty($locationTitle)) {
+            $this->paginate['joins'] = array(array('table' => 'eventual_contract_budgets', 'alias' => 'EventualContractBudget', 'type' => 'left', 'conditions' => array('Sic.eventual_contract_id = EventualContractBudget.id')));
+            $this->paginate['conditions']['EventualContractBudget.location'] = $locationTitle;
+            $this->request->data['Search']['location'] = $locationTitle;
+        }
+
+        if(!empty($jsId)) {
+            $this->paginate['conditions']['Contract.user_id'] =  $jsId;
+            $this->paginate['conditions']['Sic.contract_type_id'] = 0;
+		}
+
+		// if(empty($this->Session->read('App.Sic.date_start'))) {
+		// 	$this->paginate['conditions']['Sic.date_of >='] = date('Y-01-01');
+		// }		
+
+		//$this->paginate['joins'] = array(array('table' => 'users', 'alias' => 'User', 'type' => 'left', 'conditions' => array('Sic.log_user_id = User.id')));
+        $this->paginate['conditions']['Sic.robinson <>'] = 1;
+		$this->paginate['order'] = 'Sic.date_of DESC';
+		$this->paginate['limit'] = 10000;
+        $this->paginate['contain'] = array(
+            'SicsItem' => array(
+                'Item',
+                'conditions' => array(
+                    'SicsItem.robinson <>' => 1
+                )
+            ),
+            'Center',
+            'LogUser',
+            'Supplier',
+            'Contract' => array('Customer'),
+            'EventualContract' => array('EventualContractBudget' => array('Customer')),
+            'InvoicesOc'	
+        );
+		$this->Sic->Behaviors->attach('Containable');
+
+        // Agregar el filtro de fecha para los sic
+        if(isset($this->request->data['Search']['sic_date_from']) && isset($this->request->data['Search']['sic_date_to'])){
+            $this->Session->write('App.Sic.sic_date_from', $this->request->data['Search']['sic_date_from']);
+            $this->Session->write('App.Sic.sic_date_to', $this->request->data['Search']['sic_date_to']);
+        }
+
+
+        echo utf8_decode("SIC #;Fecha;Fecha De Vencimiento;Centro;Contrato;Tipo;Proveedor;Cantidad;Rubro;Subrubro;Item;Detalle;Importe;Condicion De Pago;Estado;Tipo De Contrato;Justificación;Factura Asociada;Nro.Factura;Generado Por;") . "\n";
+
+        $items = $this->Sic->find('all', $this->paginate);
+
+        if(count($items) > 0) {
+            foreach($items as $sic) {
+                // largo el listado por cada item
+                if(count($sic['SicsItem']) > 0) {
+                    $status = ($sic['Sic']['closed'] == 1) ? 'Aprobada' : 'En proceso';
+                    $logUser = isset($sic['LogUser']['first_name']) ? $sic['LogUser']['first_name'] : '-';
+                    $contractType = (isset($this->_contract_types[$sic['Contract']['type_id']])) ? $this->_contract_types[$sic['Contract']['type_id']] : '-';
+                    $contractNumber = (!empty($sic['Contract']['contract_number'])) ? $sic['Contract']['contract_number'] : '-';
+                    $associatedInvoice = isset($sic['InvoicesOc']['finvoice_oc_file_name']) ? $sic['InvoicesOc']['finvoice_oc_file_name'] : '-';
+                    $nroAssociatedInvoice = (isset($sic['InvoicesOc']['invoice_oc_branch']) && isset($sic['InvoicesOc']['invoice_oc_number'])) ? $sic['InvoicesOc']['invoice_oc_branch']. '-' .$sic['InvoicesOc']['invoice_oc_number'] : '-';
+                    foreach($sic['SicsItem'] as $item) {
+                        $path = '->->->';
+                        if(isset($item['Item']['path']) && !empty($item['Item']['path']))
+                            $path = $item['Item']['path'];
+                        // tiene la misma escructura que el export del PDF
+                        $splitPath = explode('>', $path);
+                        $rubro = (isset($splitPath[0])) ? $splitPath[0] : '-';
+                        $subrubro = (isset($splitPath[1])) ? $splitPath[1] : '-';
+                        //$subsubrubro = (isset($splitPath[3]))?$splitPath[3]:'-';
+                        $subsubrubro = $item['Item']['title'];
+                        $detail = '-';
+                        // sólo si han cargado una descripción diferente
+                        $detail = str_replace(";", " ", $item['detail']);
+                        $orderType = (isset($this->_order_types[$sic['Sic']['type_id']])) ? $this->_order_types[$sic['Sic']['type_id']] : '-';
+                        $line = 
+                        	$sic['Sic']['sic_number'] . ";" . 
+                        	$time->format('d/m/Y', $sic['Sic']['date_of']) . ";" . 
+                        	$time->format('d/m/Y', $sic['InvoicesOc']['invoice_oc_date_expiration']) . ";" . 
+                        	$sic['Center']['title'] . ";" . 
+                        	$contractNumber . ";" . 
+                        	$orderType . ";" . 
+                        	str_replace("\r", "", $sic['Supplier']['company']) . ";" . 
+                        	$item['amount'] . ";" . 
+                        	$rubro . ";" . 
+                        	$subrubro . ";" . 
+                        	$subsubrubro . ";" . 
+                        	$detail . ";" . 
+                        	$item['total_price'] . ";" . 
+                        	$sic['Sic']['payment_form'] . ";" . 
+                        	$status . ";" . 
+                        	$contractType . ";" . 
+                        	str_replace("\r\n", ' ', $sic['Sic']['justification']) . ";" . 
+                        	$associatedInvoice . ";" . 
+                        	$nroAssociatedInvoice . ";" .
+                        	$logUser . ";";
+                        echo utf8_decode($line), "\n";
+                    }
+                }
+            }
+        }
+        die();
+    }
+
+	public function admin_get_csv_resume() {
+        $this->autoRender = false;
+        set_time_limit(0);
+        header("Content-type: application/vnd.ms-excel");
+        header("Content-disposition: attachment; filename=sics_resumen_export.csv");
+        header("Pragma: no-cache");
+        header("Expires: 0");
+        App::uses('TimeHelper', 'View/Helper');
+        $time = new TimeHelper(new View(null));
+
+		$role = $this->Auth->user('role');
+        $authUserId = $this->Auth->user('id');
+        $joId = $this->Session->read('App.Sic.jefeobra_id');
+        $jsId = $this->Session->read('App.Sic.user_id');
+
+        $this->loadModel('UsersCenter');
+        $this->loadModel('OperationUnit');
+        $this->loadModel('UsersOperationUnit');
+        $operarionUnitsInfo = $this->UsersOperationUnit->getOperationUnitsInfo(
+        	$this->UsersCenter, $this->OperationUnit, $this->Sic->Center, $authUserId);
+
+        $userCenters = $operarionUnitsInfo['userCenters'];
+
+        $this->set('userCenters', $userCenters);
+        $this->set('centersGT', $operarionUnitsInfo['centersGT']);
+        $this->set('centersTO', $operarionUnitsInfo['centersTO']);
+        $this->set('usersOperationUnit', $operarionUnitsInfo['usersOperationUnit']);
+        $this->set('operationCentersUnits', $operarionUnitsInfo['operationCentersUnits']);
+        $this->set('operationUnits', $operarionUnitsInfo['operationUnits']);
+
+        if($role == 10 && (empty($joId) || empty($jsId))) {
+            if(empty($this->Session->read('App.Sic.center_id'))) {
+                if(count($userCenters) > 0) {
+                    $this->paginate['conditions']['Sic.center_id'] = $userCenters;
+                } else {
+                    $this->paginate['conditions']['Sic.center_id'] = $this->Auth->user('center_id');
+                }
+            }
+        }
+
+		$this->applyFilters();
+        $centerId = $this->Session->read('App.Sic.center_id');
+        $locationTitle = $this->Session->read('App.Sic.location');
+        $eventualContractId = $this->Session->read('App.Sic.eventual_contract_id');
+        if($role == 60 || !empty($eventualContractId) || !empty($joId)) {
+            $this->paginate['joins'] = array(array('table' => 'eventual_contract_budgets', 'alias' => 'EventualContractBudget', 'type' => 'INNER', 'conditions' => array(array('Sic.eventual_contract_id = EventualContractBudget.id'))));
+            $this->paginate['conditions']['Sic.contract_type_id'] = 1;
+            if($role == 60) {
+                $this->paginate['conditions']['EventualContractBudget.jefeobra_id'] = $authUserId;
+                if(count($userCenters) > 0) {$this->paginate['conditions']['EventualContractBudget.center_id'] = $userCenters;}
+            }
+            if(!empty($joId)) {$this->paginate['conditions']['EventualContractBudget.jefeobra_id'] =  $joId;}
+            if(!empty($eventualContractId)) {$this->paginate['conditions']['EventualContractBudget.id'] = $eventualContractId;}
+		} elseif($role == 20) {
+            if(empty($centerId)) {
+                if(count($userCenters) > 0) {
+                    $this->paginate['conditions']['Sic.center_id'] = $userCenters;
+                } else {
+                    $this->paginate['conditions']['Sic.center_id'] = $this->Auth->user('center_id');
+                }
+            }
+            $this->paginate['conditions']['Sic.contract_type_id'] = 0;
+		}
+        if(!empty($locationTitle)) {
+            $this->paginate['joins'] = array(array('table' => 'eventual_contract_budgets', 'alias' => 'EventualContractBudget', 'type' => 'left', 'conditions' => array('Sic.eventual_contract_id = EventualContractBudget.id')));
+            $this->paginate['conditions']['EventualContractBudget.location'] = $locationTitle;
+            $this->request->data['Search']['location'] = $locationTitle;
+        }
+
+		if(!empty($jsId)) {
+            $this->paginate['conditions']['Contract.user_id'] =  $jsId;
+            $this->paginate['conditions']['Sic.contract_type_id'] = 0;
+		}
+
+		$this->paginate['joins'] = array(array('table' => 'users', 'alias' => 'User', 'type' => 'left', 'conditions' => array('Sic.log_user_id = User.id')));
+        $this->paginate['conditions']['Sic.robinson <>'] = 1;
+		$this->paginate['order'] = 'Sic.date_of DESC';
+		$this->paginate['limit'] = 10000;
+        $this->paginate['contain'] = array(
+            'SicsItem' => array(
+                'Item',
+                'conditions' => array(
+                    'SicsItem.robinson <>' => 1
+                )
+            ),
+            'Center',
+            'LogUser',
+            'Supplier',
+            'Contract' => array('Customer'),
+            'EventualContract' => array('EventualContractBudget' => array('Customer')),
+            'InvoicesOc'
+        );
+		$this->Sic->Behaviors->attach('Containable');
+
+        echo utf8_decode("N° de SIC;Fecha;Fecha de Vencimiento;Centro;Contrato;Tipo;Proveedor;Importe sin IVA;Estado;Tipo de Contrato;") . "\n";
+
+        $items = $this->Sic->find('all', $this->paginate);
+
+        if(count($items) > 0) {
+            foreach($items as $sic) {
+                if(count($sic['SicsItem']) > 0) {
+                    $status = ($sic['Sic']['closed'] == 1) ? 'Aprobada' : 'En proceso';
+                    $contractType = (isset($this->_contract_types[$sic['Contract']['type_id']])) ? $this->_contract_types[$sic['Contract']['type_id']] : '-';
+
+                    // Contract number: depende del tipo de contrato
+                    if($sic['Sic']['contract_type_id'] == 1) {
+                        // Contrato eventual
+                        $contractNumber = (!empty($sic['EventualContract']['EventualContractBudget']['contract_number']))
+                            ? $sic['EventualContract']['EventualContractBudget']['contract_number']
+                            : '-';
+                    } else {
+                        // Contrato de mantenimiento
+                        $contractNumber = (!empty($sic['Contract']['contract_number']))
+                            ? $sic['Contract']['contract_number']
+                            : '-';
+                    }
+
+                    $orderType = (isset($this->_order_types[$sic['Sic']['type_id']])) ? $this->_order_types[$sic['Sic']['type_id']] : '-';
+
+                    $totalAmount = 0;
+                    foreach($sic['SicsItem'] as $item) {
+                        $totalAmount += $item['total_price'];
+                    }
+
+                    $line =
+                    	$sic['Sic']['sic_number'] . ";" .
+                    	$time->format('d/m/Y', $sic['Sic']['date_of']) . ";" .
+                    	$time->format('d/m/Y', $sic['InvoicesOc']['invoice_oc_date_expiration']) . ";" .
+                    	$sic['Center']['title'] . ";" .
+                    	$contractNumber . ";" .
+                    	$orderType . ";" .
+                    	str_replace("\r", "", $sic['Supplier']['company']) . ";" .
+                    	number_format($totalAmount, 2, ',', '.') . ";" .
+                    	$status . ";" .
+                    	$contractType . ";";
+                    echo utf8_decode($line), "\n";
+                }
+            }
+        }
+        die();
+    }
+
+    // toma los items de una categoría
+	public function admin_get_csv_2019() {
+		set_time_limit(0);
+        $sics = $this->Sic->SicsItem->query("SELECT 
+            SicsItem.id, 
+            SicsItem.item_id, 
+            SicsItem.amount, 
+            SicsItem.total_price, 
+            SicsItem.detail,
+            Item.path,
+            Item.title,
+            Sic.sic_number,
+            Sic.date_of,
+            Sic.type_id,
+            Sic.closed,
+            Sic.payment_form,
+            Sic.contract_type_id,
+            Contract.contract_number,
+            EventualBudgetContract.contract_number,
+            Center.title,
+            Supplier.company
+        FROM sics_items SicsItem 
+            LEFT JOIN items Item ON SicsItem.item_id = Item.id
+            LEFT JOIN sics Sic ON SicsItem.sic_id = Sic.id
+            LEFT JOIN contracts Contract ON Sic.contract_id = Contract.id
+            LEFT JOIN eventual_contract_budgets EventualBudgetContract ON Sic.eventual_contract_id = EventualBudgetContract.id
+            LEFT JOIN centers Center ON Sic.center_id = Center.id
+            LEFT JOIN suppliers Supplier ON Sic.supplier_id = Supplier.id
+        WHERE SicsItem.robinson <> 1
+            AND Sic.type_id IN (1,2,4)
+            AND Sic.date_of > '2018-12-31'
+            AND Sic.created IS NOT NULL
+        ORDER BY Sic.date_of DESC");  
+        
+        App::uses('TimeHelper', 'View/Helper');
+        App::import('Vendor', 'PHPExcel', array('file' => 'PHPExcel' . DS . 'Classes' . DS . 'PHPExcel.php'));
+		$this->autoRender = false;
+		$time = new TimeHelper(new View( null));
+        
+		if( count($sics) > 0 ) {
+            $spreadsheet = new PHPExcel();
+            $spreadsheet->getProperties()->setCreator('Emsetec Facility Management')
+                    ->setLastModifiedBy($this->Auth->user('first_name'))
+                    ->setTitle('Reporte SICs aprobadas')
+                    ->setSubject('Reporte SICs aprobadas')
+                    ->setDescription('Reporte SICs aprobadas')
+                    ->setKeywords('reporte sics aprobadas')
+                    ->setCategory('Reporte SICs aprobadas');
+
+            // Set Columns Names
+            $spreadsheet->setActiveSheetIndex(0)
+                    ->setCellValue('A1', 'Sic #')
+                    ->setCellValue('B1', 'Fecha')
+                    ->setCellValue('C1', 'Mes')
+                    ->setCellValue('D1', 'Año')
+                    ->setCellValue('E1', 'Centro')
+                    ->setCellValue('F1', 'Contrato')
+                    ->setCellValue('G1', 'Tipo')
+                    ->setCellValue('H1', 'Proveedor')
+                    ->setCellValue('I1', 'Cantidad')
+                    ->setCellValue('J1', 'Rubro')
+                    ->setCellValue('K1', 'Subrubro')
+                    ->setCellValue('L1', 'Item')
+                    ->setCellValue('M1', 'Detalle')        
+                    ->setCellValue('N1', 'Importe')        
+                    ->setCellValue('O1', 'Condición de Pago')        
+                    ->setCellValue('P1', 'Estado')        
+                    ->setCellValue('Q1', 'Tipo contrato');            
+            // ABCDEFGHIJKLMNOPQR
+            $rowNumber = 2;
+            foreach($sics as $sic) {
+                if($sic['Sic']['contract_type_id'] == 1) {
+                    $contractNumber = !empty($sic['EventualBudgetContract']['contract_number']) ? $sic['EventualBudgetContract']['contract_number'] : '-';
+                    $contractType = 'Eventual';
+                } elseif($sic['Sic']['contract_type_id'] == 0) {
+                    $contractNumber = !empty($sic['Contract']['contract_number']) ? $sic['Contract']['contract_number'] : '-';
+                    $contractType = 'Mantenimiento';
+                }
+                $path = '->->->';
+                if(isset($sic['Item']['path']) && !empty($sic['Item']['path'])) {
+                    $path = $sic['Item']['path'];
+                }
+                $splitPath = explode( '>', $path);
+                $spreadsheet->setActiveSheetIndex(0)
+                    ->setCellValue('A' . $rowNumber, $sic['Sic']['sic_number'])
+                    ->setCellValue('B' . $rowNumber, isset($sic['Sic']['date_of']) ? $time->format('d/m/Y',$sic['Sic']['date_of']) : '')
+                    ->setCellValue('C' . $rowNumber, isset($sic['Sic']['date_of']) ? $time->format('m',$sic['Sic']['date_of']) : '')
+                    ->setCellValue('D' . $rowNumber, isset($sic['Sic']['date_of']) ? $time->format('Y',$sic['Sic']['date_of']) : '')
+                    ->setCellValue('E' . $rowNumber, $sic['Center']['title'])
+                    ->setCellValue('F' . $rowNumber, $contractNumber)
+                    ->setCellValue('G' . $rowNumber, isset($this->_order_types[$sic['Sic']['type_id']]) ? $this->_order_types[$sic['Sic']['type_id']]:'-')
+                    ->setCellValue('H' . $rowNumber, str_replace("\r","", $sic['Supplier']['company']))
+                    ->setCellValue('I' . $rowNumber, $sic['SicsItem']['amount'])
+                    ->setCellValue('J' . $rowNumber, isset($splitPath[0]) ? $splitPath[0] : '-')
+                    ->setCellValue('K' . $rowNumber, isset($splitPath[1]) ? $splitPath[1] : '-')
+                    ->setCellValue('L' . $rowNumber, $sic['Item']['title'])
+                    ->setCellValue('M' . $rowNumber, str_replace( ";", " ", $sic['SicsItem']['detail']))
+                    ->setCellValue('N' . $rowNumber, $sic['SicsItem']['total_price'])
+                    ->setCellValue('O' . $rowNumber, $sic['Sic']['payment_form'])
+                    ->setCellValue('P' . $rowNumber, $sic['Sic']['closed'] == 1 ? 'Aprobada':'En proceso')
+                    ->setCellValue('Q' . $rowNumber, $contractType);
+                $spreadsheet->getActiveSheet()->getStyle('N' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');                        
+                $rowNumber++;
+            }
+        }
+        // Rename worksheet
+        $spreadsheet->getActiveSheet()->setTitle('Reporte SICs aprobadas');
+        // Set active sheet index to the first sheet, so Excel opens this as the first sheet
+        $spreadsheet->setActiveSheetIndex(0);
+        // Set text style
+        $spreadsheet->getActiveSheet()->getStyle('A1:R1')->getFont()->setBold( true );
+        // Redirect output to a client’s web browser (Xls)
+        header('Content-Type: application/vnd.ms-excel');
+        header('Content-Disposition: attachment;filename="Reporte-SICs-aprobadas.xls"');
+        header('Cache-Control: max-age=0');
+        // If you're serving to IE 9, then the following may be needed
+        header('Cache-Control: max-age=1');
+        // If you're serving to IE over SSL, then the following may be needed
+        header('Expires: Mon, 26 Jul 1997 05:00:00 GMT'); // Date in the past
+        header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT'); // always modified
+        header('Cache-Control: cache, must-revalidate'); // HTTP/1.1
+        header('Pragma: public'); // HTTP/1.0
+        $writer = PHPExcel_IOFactory::createWriter($spreadsheet, 'Excel5');
+        $writer->save('php://output');            
+        exit;                        
+	}
+
+	public function cleanStringForCSV($str){
+		$str = str_replace(array("\r\n", "\n", "\r", "\t", ",", "\"",";"), "", $str);
+		return trim($str);
+	}
+
+	public function admin_get_csv_ff_2019( ){		
+		set_time_limit(0);
+        $categories = $this->Sic->SicsItem->Item->Category->getCategoryTree(true);
+        $sics = $this->Sic->SicsMovement->query("SELECT 
+            Sic.sic_number,
+            Center.title,
+            SicsMovement.sics_surrender_id,
+            Supplier.company,
+            Supplier.cuit,
+            SicsMovement.date_of,
+            SicsMovement.detail,
+            SicsMovement.receipt_type_id,
+            SicsMovement.receipt_branch_id,
+            SicsMovement.receipt,
+            SicsMovement.category_id,
+            SicsMovement.total,
+            SicsMovement.not_taxed_total,
+            SicsMovement.iva_percentage,
+            SicsMovement.iva,
+            SicsMovement.iibb_caba,
+            SicsMovement.iibb_bs_as,
+            SicsMovement.iibb_otras,
+            SicsMovement.percep_iva,
+            SicsMovement.percep_ganancias,
+            SicsMovement.grand_total,
+            PersonInCharge.first_name,
+            PersonInCharge.last_name,
+            User.first_name
+        FROM sics_movements SicsMovement
+            LEFT JOIN sics Sic ON Sic.id = SicsMovement.sic_id
+            LEFT JOIN users PersonInCharge ON PersonInCharge.id = SicsMovement.person_in_charge
+            LEFT JOIN users User ON User.id = SicsMovement.user_id
+            LEFT JOIN centers Center ON Center.id = Sic.center_id
+            LEFT JOIN suppliers Supplier ON Supplier.id = SicsMovement.supplier_id
+        WHERE Sic.robinson <> 1
+            AND Sic.type_id IN (3)
+            AND Sic.created > '2018-12-31 00:00:00'
+            AND Sic.created IS NOT NULL
+        ORDER BY SicsMovement.sic_id DESC");
+        
+		App::uses('TimeHelper', 'View/Helper');
+        App::import('Vendor', 'PHPExcel', array('file' => 'PHPExcel' . DS . 'Classes' . DS . 'PHPExcel.php'));
+		$this->autoRender = false;
+		$time = new TimeHelper(new View( null));
+        
+		if( count($sics) > 0 ) {
+            $spreadsheet = new PHPExcel();
+            $spreadsheet->getProperties()->setCreator('Emsetec Facility Management')
+                    ->setLastModifiedBy($this->Auth->user('first_name'))
+                    ->setTitle('Reporte SICs Fondo Fijo')
+                    ->setSubject('Reporte SICs Fondo Fijo')
+                    ->setDescription('Reporte SICs Fondo Fijo')
+                    ->setKeywords('reporte sics Fondo Fijo')
+                    ->setCategory('Reporte SICs Fondo Fijo');
+
+            // Set Columns Names
+            $spreadsheet->setActiveSheetIndex(0)
+                    ->setCellValue('A1', 'Solicitud FF')
+                    ->setCellValue('B1', 'Centro Operativo')
+                    ->setCellValue('C1', 'Rendición')
+                    ->setCellValue('D1', 'Proveedor')
+                    ->setCellValue('E1', 'CUIT')
+                    ->setCellValue('F1', 'Fecha')
+                    ->setCellValue('G1', 'Comp. Tipo')
+                    ->setCellValue('H1', 'Comp. Pto. Vta.')
+                    ->setCellValue('I1', 'Comp. Núm.')
+                    ->setCellValue('J1', 'Rubro')
+                    ->setCellValue('K1', 'Subrubro')
+                    ->setCellValue('L1', 'Item')
+                    ->setCellValue('M1', 'Importe Gravado')        
+                    ->setCellValue('N1', 'Importe NO Gravado')        
+                    ->setCellValue('O1', '%IVA')        
+                    ->setCellValue('P1', 'IVA')        
+                    ->setCellValue('Q1', 'Percep IIBB CABA')        
+                    ->setCellValue('R1', 'Percep IIBB BS AS')        
+                    ->setCellValue('S1', 'Percep IIBB Otras')        
+                    ->setCellValue('T1', 'Percep. IVA')        
+                    ->setCellValue('U1', 'Percep. Ganancias')        
+                    ->setCellValue('V1', 'Importe Total')        
+                    ->setCellValue('W1', 'Responsable')        
+                    ->setCellValue('X1', 'Cargado por')
+                    ->setCellValue('Y1', 'Detalle');
+            $rowNumber = 2;
+            foreach($sics as $sic) {
+                $category = (isset($categories[$sic['SicsMovement']['category_id']])) ? $categories[$sic['SicsMovement']['category_id']] : '->->-';
+                $rubro = explode('>', $category);
+                // ABCDEFGHIJKLMNOPQRSTUVWXYZ
+                $spreadsheet->setActiveSheetIndex(0)
+                    ->setCellValue('A' . $rowNumber, $sic['Sic']['sic_number'])
+                    ->setCellValue('B' . $rowNumber, isset($sic['Center']['title']) ? $sic['Center']['title'] : '-')
+                    ->setCellValue('C' . $rowNumber, isset($sic['SicsMovement']['sics_surrender_id']) ? $sic['SicsMovement']['sics_surrender_id'] : '-')
+                    ->setCellValue('D' . $rowNumber, isset($sic['Supplier']['company']) ? $sic['Supplier']['company'] : '-')
+                    ->setCellValue('E' . $rowNumber, isset($sic['Supplier']['cuit']) ? str_replace('-', '', $sic['Supplier']['cuit']) : '-')
+                    ->setCellValue('F' . $rowNumber, isset($sic['SicsMovement']['date_of']) ? $time->format('d/m/Y',$sic['SicsMovement']['date_of']) : '')
+                    ->setCellValue('G' . $rowNumber, isset($this->_receipt_types[$sic['SicsMovement']['receipt_type_id']]) ? $this->_receipt_types[$sic['SicsMovement']['receipt_type_id']] : '-')
+                    ->setCellValue('H' . $rowNumber, $sic['SicsMovement']['receipt_branch_id'])
+                    ->setCellValue('I' . $rowNumber, $sic['SicsMovement']['receipt'])
+                    ->setCellValue('J' . $rowNumber, isset($rubro[0]) ? $this->cleanStringForCSV($rubro[0]) : '-')
+                    ->setCellValue('K' . $rowNumber, isset($rubro[1]) ? $this->cleanStringForCSV($rubro[1]) : '-')
+                    ->setCellValue('L' . $rowNumber, isset($rubro[2]) ? $this->cleanStringForCSV($rubro[2]) : '-')
+                    ->setCellValue('M' . $rowNumber, $sic['SicsMovement']['total'])
+                    ->setCellValue('N' . $rowNumber, $sic['SicsMovement']['not_taxed_total'])
+                    ->setCellValue('O' . $rowNumber, $sic['SicsMovement']['iva_percentage'])
+                    ->setCellValue('P' . $rowNumber, $sic['SicsMovement']['iva'])
+                    ->setCellValue('Q' . $rowNumber, $sic['SicsMovement']['iibb_caba'])
+                    ->setCellValue('R' . $rowNumber, $sic['SicsMovement']['iibb_bs_as'])
+                    ->setCellValue('S' . $rowNumber, $sic['SicsMovement']['iibb_otras'])
+                    ->setCellValue('T' . $rowNumber, $sic['SicsMovement']['percep_iva'])
+                    ->setCellValue('U' . $rowNumber, $sic['SicsMovement']['percep_ganancias'])
+                    ->setCellValue('V' . $rowNumber, $sic['SicsMovement']['grand_total'])
+                    ->setCellValue('W' . $rowNumber, isset($sic['PersonInCharge']['first_name']) ? $sic['PersonInCharge']['first_name'] . ' ' . $sic['PersonInCharge']['last_name'] : '')
+                    ->setCellValue('X' . $rowNumber, isset($sic['User']['first_name']) ? $sic['User']['first_name'] : '')
+                    ->setCellValue('Y' . $rowNumber, $sic['SicsMovement']['detail']);
+                $spreadsheet->getActiveSheet()->getStyle('M' . $rowNumber . ':V' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');                        
+                $rowNumber++;
+            }
+        }
+        // Rename worksheet
+        $spreadsheet->getActiveSheet()->setTitle('Reporte SICs Fondo Fijo');
+        // Set active sheet index to the first sheet, so Excel opens this as the first sheet
+        $spreadsheet->setActiveSheetIndex(0);
+        // Set text style
+        $spreadsheet->getActiveSheet()->getStyle('A1:R1')->getFont()->setBold( true );
+        // Redirect output to a client’s web browser (Xls)
+        header('Content-Type: application/vnd.ms-excel');
+        header('Content-Disposition: attachment;filename="Reporte-SICs-FondoFijo.xls"');
+        header('Cache-Control: max-age=0');
+        // If you're serving to IE 9, then the following may be needed
+        header('Cache-Control: max-age=1');
+        // If you're serving to IE over SSL, then the following may be needed
+        header('Expires: Mon, 26 Jul 1997 05:00:00 GMT'); // Date in the past
+        header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT'); // always modified
+        header('Cache-Control: cache, must-revalidate'); // HTTP/1.1
+        header('Pragma: public'); // HTTP/1.0
+        $writer = PHPExcel_IOFactory::createWriter($spreadsheet, 'Excel5');
+        $writer->save('php://output');            
+        exit;
+	}
+    
+	public function admin_get_csv_ff( ){
+		
+		$this->autoRender = false;
+
+		set_time_limit(0);
+
+		header("Content-type: application/vnd.ms-excel");
+		header("Content-disposition: attachment; filename=sics_export.csv");
+		header("Pragma: no-cache");
+		header("Expires: 0");
+
+		App::uses('TimeHelper', 'View/Helper');
+		$time = new TimeHelper(new View( null));
+		
+		// posibles categorias
+		$categories = $this->Sic->SicsItem->Item->Category->getCategoryTree(true);	
+
+		$this->paginate['contain'] = array(
+			'Center',
+			'SicsMovement' => array(
+				'Supplier',
+				'PersonInCharge',
+				'User',
+				'SicsSurrender'
+			)
+		);
+
+		$this->Sic->Behaviors->attach('Containable');
+
+		$this->paginate['conditions']['Sic.robinson <>'] = 1;
+
+		if(empty($this->Session->read('App.Sic.date_start'))) {
+			$this->paginate['conditions']['Sic.date_of >='] = date('Y-01-01');
+		}
+
+		$this->applyFilters();
+
+		// se trae todos los resultados
+		$items = $this->Sic->find('all', $this->paginate);
+
+		$headers = ['Solicitud FF', 'Centro Operativo', 'Rendición', 'Proveedor', 'CUIT', 'Fecha', 'Comp. Tipo', 'Comp. Pto. Vta.', 'Comp. Núm.', 'Rubro', 'Subrubro', 'Item', 'Importe Gravado', 'Importe NO Gravado', '%IVA', 'IVA', 'Percep IIBB CABA', 'Percep IIBB BS AS', 'Percep IIBB Otras', 'Percep. IVA', 'Percep. Ganancias', 'Importe Total', 'Responsable', 'Cargado por', 'Detalle'];
+		echo utf8_decode(implode(';', $headers))."\n";
+		foreach( $items as $item){
+			if( $item['SicsMovement']){
+				foreach( $item['SicsMovement'] as $mov){
+					$category = (isset($categories[$mov['category_id']]))
+									? $this->cleanStringForCSV($categories[$mov['category_id']])
+									: '->->-';
+					$rubro = explode('>', $category);
+					$line = [];
+					$line[] = $item['Sic']['sic_number'];
+					$line[] = (isset($item['Center']['id'])) ? $this->cleanStringForCSV($item['Center']['title']) : '-';
+					$line[] = (!empty($mov['sics_surrender_id'])) ? $mov['sics_surrender_id'] : '-';
+					// datos del proveedor
+					$line[] = $this->cleanStringForCSV($mov['Supplier']['company']);
+					$line[] = (!empty($mov['Supplier']['cuit'])) ? $mov['Supplier']['cuit'] : '-';
+					$line[] = $time->format('d/m/Y', $mov['date_of']);
+					$line[] = (isset($this->_receipt_types[$mov['receipt_type_id']])) ? $this->cleanStringForCSV($this->_receipt_types[$mov['receipt_type_id']]) : '-';
+					$line[] = $mov['receipt_branch_id'];
+					$line[] = $mov['receipt'];
+					$line[] = (isset($rubro[0])) ? $this->cleanStringForCSV($rubro[0]) : '-';
+					$line[] = (isset($rubro[1])) ? $this->cleanStringForCSV($rubro[1]) : '-';
+					$line[] = (isset($rubro[2])) ? $this->cleanStringForCSV($rubro[2]) : '-';
+					$line[] = $mov['total'];
+					$line[] = $mov['not_taxed_total'];
+					$line[] = $mov['iva_percentage'];
+					$line[] = $mov['iva'];
+					$line[] = $mov['iibb_caba'];
+					$line[] = $mov['iibb_bs_as'];
+					$line[] = $mov['iibb_otras'];
+					$line[] = $mov['percep_iva'];
+					$line[] = $mov['percep_ganancias'];
+					$line[] = $mov['grand_total'];
+					$line[] = (isset($mov['PersonInCharge']['id'])) ? $this->cleanStringForCSV($mov['PersonInCharge']['full_name']) : '-';
+					$line[] = (isset($mov['User']['id'])) ? $this->cleanStringForCSV($mov['User']['first_name']) : '-';
+					$line[] = $this->cleanStringForCSV($mov['detail']);
+
+					//pr($line);
+					echo utf8_decode(implode(';', $line))."\n";
+				}
+			}
+		}
+		die();
+
+	}
+    
+
+	/**
+	 * Devuelve los items sin chequear los límites
+	 */
+	public function admin_get_items_unlimited($cat_id = 0){
+
+		$this->autoRender = false;
+
+		// obtengo los items de la categoría seleccionada
+		$options = array(
+			'fields' => array( 'Item.id', 'Item.title'),
+			'conditions' => array(
+				'Item.category_id' => $cat_id,
+				'Item.robinson <>' => 1
+				)
+			);
+		$items = $this->Sic->SicsItem->Item->find('list', $options);
+		if( $items){
+			$data = array( 'data' => $items, 'error' => '' );
+		}else{
+			$data = array( 'data' => array(), 'error' => 'El rubro no tiene productos relacionados' );
+		}
+		die( json_encode( $data ) );
+
+	}
+
+	public function admin_get_items( $cat_id = 0){
+
+		$this->autoRender = false;
+		$contract = $this->Session->read('App.SicContractId');
+		
+		// veo límites del arbol o "Si el contrato es 0, es decir, es eventual"
+		if( $this->admin_check_limit( $contract, $cat_id) || $contract==0 ){
+			$this->admin_get_items_unlimited($cat_id);
+		}else{
+			$data = array( 'data' => array(), 'error' => $this->limitError );
+			die( json_encode( $data ) );
+		}
+
+	}
+
+	// chequea límite del contrato para la categoría seleccionada
+	public function admin_check_limit( $contract_id, $cat_id, $amount = 0, $price = 0){
+
+		// nueva exception para contratos que no tienen limites
+		$respectLimits = true;
+		$this->recursive = -1;
+		$contract = $this->Sic->Contract->read( null, $contract_id);
+		if( $contract){
+			if( isset($contract['Contract']['no_limits']) &&  $contract['Contract']['no_limits'] == 1) $respectLimits = false;
+		}
+		// ----------------------------------------------------
+
+
+		//$this->autoRender = false;
+
+		// trae límites y totales del contrato relacionado
+		$limits = $this->Sic->Contract->getLimits( $contract_id);
+		// le paso los límites para ver como agrupa por categoría
+		$totals = $this->Sic->Contract->getTotals( $contract_id, $limits);
+
+		if( !$respectLimits){
+			return true;
+		}
+
+		$this->loadModel('Category');
+		$pathArray = $this->Category->getPath( $cat_id);
+
+		// recorro el array de categorías para encontrar un límite
+		$catBaseTitle = ''; // categoría tomada como referencia (última rama)
+		$catBaseId = ''; // categoría tomada como referencia (última rama)
+		$amountLimit = 0;
+		$priceLimit = 0;
+		$parentPriceLimit = 0;
+		foreach( $pathArray as $cat){
+			if( isset($limits[ $cat['Category']['id'] ])){
+				$amountLimit = $limits[ $cat['Category']['id'] ]['amount'];
+				$priceLimit = $limits[ $cat['Category']['id'] ]['price'];
+				$catBaseTitle = $cat['Category']['title'];
+				$catBaseId = $cat['Category']['id'];
+				// parche toma el limite de la categoria padre
+				if( isset($limits[ $cat['Category']['parent_id'] ]) ){
+					$parentPriceLimit = $limits[ $cat['Category']['parent_id'] ]['price'];
+				}
+				// corta el loop a la primera 
+				// break;
+			}
+		}
+
+
+		// la categoría o su path no cuenta con límites
+		if( $amountLimit == 0 || $priceLimit == 0 ){
+			$this->limitError = 'El rubro seleccionado (o sus padres) no cuentan con presupuesto mensual asignado.';
+			return false;
+		}		
+
+		$amountLimit = 1000000; // por cantidad no hay limite
+		// para el caso que se tenga cantidad o precio
+
+		if( $amount > 0 || $price > 0 ){
+
+			// ahora que tengo los límites, chequeo que no se vayan a superar
+			$compareAmountTotal = $amount;
+			$comparePriceTotal = $price;
+
+			// veo si tengo el total de la categoría y se lo sumo
+			if( isset($totals[ $catBaseId]['amount'])){
+				$compareAmountTotal += $totals[ $catBaseId ]['amount'];
+			}
+			if( isset($totals[ $catBaseId]['price'])){
+				$comparePriceTotal += $totals[ $catBaseId ]['price'];
+			}
+
+			// saldos
+			$saldoPrice = $priceLimit;
+			$saldoAmount = $amountLimit;
+			if( isset($totals[ $catBaseId ]['amount'])){
+				$saldoAmount = $amountLimit - $totals[ $catBaseId ]['amount'];
+			}
+			if( isset($totals[ $catBaseId ]['price'])){
+				$saldoPrice = $priceLimit - $totals[ $catBaseId ]['price'];
+			}
+			// fin saldos
+
+			if( $compareAmountTotal > $amountLimit){
+				$this->limitError = 'El rubro ' . $catBaseTitle . ' supera su límite de '.$amountLimit.' unidades. Saldo: '.$saldoAmount.'. Solicite un EXTRA BUDGET o RECONFIGURAR los MONTOS de cada rubro.';
+				return false;			
+			}
+			// && $comparePriceTotal > $parentPriceLimit
+			if( $comparePriceTotal > $priceLimit && $comparePriceTotal > $parentPriceLimit ){
+				$this->limitError = 'El rubro ' . $catBaseTitle . ' supera el presupuesto mensual de $'.$priceLimit.'. Saldo: $'.$saldoPrice.'. Solicite un EXTRA BUDGET o RECONFIGURAR los MONTOS de cada rubro.';
+				return false;			
+			}		
+
+		}
+
+		// por las dudas no retorna
+		return true;
+	}
+
+	/**
+	 * Agrega un producto a una SIC
+	 * Se modifico para pasar la SIC como parametro porque al parecer al usar session
+	 * el mismo usuario modificaba dos SICs a la vez y se producían problemas
+	 */
+	public function admin_detail_add(){
+
+		$this->autoRender = false;
+
+		// busca la SIC en lugar de tomar la session
+		$this->Sic->recursive = -1;
+		$sic = $this->Sic->read(null, $this->params['data']['sic_id']);
+		if(!$sic){
+			$data = array( 'data' => array(), 'error' => 'Sic ID ' . $this->params['data']['sic_id'] . ' inválido' );
+			die( json_encode( $data ) );	
+		}
+
+		$vehicle = '';
+		$contract_id = $sic['Sic']['contract_id'];
+
+		// verifico que los datos sean correctos y saco la cuenta del valor del item
+		if( !isset($this->params['data']['cat_id']) || empty($this->params['data']['cat_id']) ){
+			$data = array( 'data' => array(), 'error' => 'Seleccione un rubro' );
+			die( json_encode( $data ) );			
+		}
+		if( !isset($this->params['data']['items_user_id']) || empty($this->params['data']['items_user_id']) ){
+			$data = array( 'data' => array(), 'error' => 'Debe seleccionar un usuario del servicio/producto comprado' );
+			die( json_encode( $data ) );			
+		}				
+		if( !isset($this->params['data']['van_id']) || empty($this->params['data']['van_id']) ){
+			if(isset($this->params['data']['cat_id']) && !empty($this->params['data']['cat_id']) ) {
+				$this->loadModel('Category');
+				$vehiclesItems = $this->Category->isItemOfVehicle($this->params['data']['cat_id']);
+				if($vehiclesItems == true) {
+					$data = array( 'data' => array(), 'error' => 'Debe seleccionar un vehiculo' );
+					die( json_encode( $data ) );
+				}
+			}
+		} else {
+	        $this->loadModel('Van');
+	        $vehicles = $this->Van->getList();
+	        if(!empty($this->params['data']['van_id'])) {
+	        	$vehicle = ' ' . $vehicles[$this->params['data']['van_id']];
+	        }			
+		}
+		if( !isset($this->params['data']['item_amount']) || !is_numeric($this->params['data']['item_amount']) ){
+			$data = array( 'data' => array(), 'error' => 'Ingrese una cantidad válida' );
+			die( json_encode( $data ) );			
+		}
+		if( !isset($this->params['data']['item_id']) || ! $item = $this->Sic->SicsItem->Item->read(null, $this->params['data']['item_id']) ){
+			$data = array( 'data' => array(), 'error' => 'Debe seleccionar un Item' );
+			die( json_encode( $data ) );
+		}else{
+			// precio
+			$priceEstimated = (isset($this->params['data']['item_price']) && is_numeric($this->params['data']['item_price']) && $this->params['data']['item_price']*1 > 0)?$this->params['data']['item_price']:$item['Item']['price'];
+			// saco el precio total que sería 
+			$totalPrice = $priceEstimated * $this->params['data']['item_amount'];
+		}
+
+		if( isset($this->params['data']['item_detail']) && !empty($this->params['data']['item_detail'])){
+			$detail = $this->params['data']['item_detail'];
+		}else{
+			$detail = $item['Item']['title'];
+		}
+
+		// veo límites del arbol
+		if( $this->admin_check_limit( $contract_id, $this->params['data']['cat_id'], $this->params['data']['item_amount'], $totalPrice) || $contract_id==0  ){		
+
+			// agrego el item
+			$dataToSave = array(
+				'sic_id' => $sic['Sic']['id'],
+				'item_id' => $this->params['data']['item_id'],
+				'van_id' => isset($this->params['data']['van_id']) ? $this->params['data']['van_id'] : '',
+				'amount' => $this->params['data']['item_amount'],
+				'unit_price' => $priceEstimated,
+				'item_iva' => $this->params['data']['item_iva'],
+				'total_price' => $totalPrice,
+				'detail' => $detail . $vehicle,
+				'robinson' => 0,
+				// auditoría
+				'log_user_id' => $this->Session->read('Auth.User.id')
+				);
+
+			$this->Sic->SicsItem->create($dataToSave);
+			if( $this->Sic->SicsItem->save()){
+				//Si es un "contrato", es decir, no es "contrato eventual"
+				if($contract_id !=0){
+					// trae límites y totales del contrato relacionado
+					$limits = $this->Sic->Contract->getLimits( $contract_id, '', true);
+					// le paso los límites para ver como agrupa por categoría
+					$totals = $this->Sic->Contract->getTotals( $contract_id, $limits, '', true);
+					// --------------
+					$data = array( 'data' => array(), 'error' => '' );
+				}else{
+					//Si es un "contrato eventual", resultado OK. con esto agrega los items
+					$data = array( 'data' => array(), 'error' => '' );
+				}
+				$this->Sic->saveField( 'items_user_id', $this->params['data']['items_user_id']);
+			}else{
+				$data = array( 'data' => array(), 'error' => 'Error al guardar' );
+			}
+			die( json_encode( $data ) );
+
+		}else{
+			$data = array( 'data' => array(), 'error' => $this->limitError );
+			die( json_encode( $data ) );
+		}
+
+	}	
+
+	// 4dm1n!r00t!
+
+	// elimina un detalle
+	public function admin_detail_delete( $id = '') {
+		
+		// limpio los límites del contrato
+		$contract_id = $this->Session->read('App.SicContractId');	
+		$this->Sic->SicsItem->id = $id;
+		$this->Sic->SicsItem->saveField( 'log_user_id', $this->Session->read('Auth.User.id') );
+		$this->Sic->SicsItem->saveField( 'robinson', 1);
+		//Si es un "contrato", es decir, no es "contrato eventual"
+		if($contract_id !=0){
+			Cache::delete('contract_totals_'.$contract_id);
+			// trae límites y totales del contrato relacionado
+			$limits = $this->Sic->Contract->getLimits( $contract_id);
+			// le paso los límites para ver como agrupa por categoría
+			$totals = $this->Sic->Contract->getTotals( $contract_id, $limits);
+			// ----
+
+			// no elimina sino que lo marca (NUNCA SE ELIMINA)
+			$data = array( 'data' => array(), 'error' => '');
+			die( json_encode( $data ) );
+		}else{
+			//contrato eventual: no elimina sino que lo marca (NUNCA SE ELIMINA)
+			$data = array( 'data' => array(), 'error' => '');
+			die( json_encode( $data ) );
+		}
+	}
+
+	public function admin_get_item_price( $id = ''){
+				// no elimina sino que lo marca (NUNCA SE ELIMINA)
+		$item = $this->Sic->SicsItem->Item->read( null, $id);
+		if($item){
+			$data = array('error' => '', 'price' => $item['Item']['price']);
+		}else{
+			$data = array( 'data' => array(), 'error' => 'Item no encontrado');
+		}
+		die( json_encode( $data ) );
+	}
+
+	public function admin_get_pdf( $id = '', $external=1){
+
+		$this->autoRender = false;
+
+		// lista de categorias
+		//$categories = $this->Sic->SicsItem->Item->Category->getCategoryTree();
+
+		$this->Sic->Behaviors->attach('Containable');
+
+		$options = array(
+			'contain' => array(
+				'Contract',
+				'Supplier',
+				'Center',
+				'SicsItem' => array('Item')
+				),
+			'conditions' => array(
+				'Sic.id' => $id
+				)
+			);
+
+		$sic = $this->Sic->find( 'first', $options);
+
+		if( $sic){
+
+            // Estado sic a conformidad requerida
+            $this->Sic->id = $id;
+            //$this->Sic->saveField('required_80', 1);
+            
+			// firmas
+			$this->loadModel('User');
+			$signs = array();
+			$reqs = array( 10, 20, 30, 40, 50); // recorro que firmas son requeridas para adjuntar
+			$i=0;
+			foreach( $reqs as $req){
+				if( $sic['Sic']['required_'.$req] == 1){
+					if( $sic['Sic']['check_'.$req] == 1 && !empty($sic['Sic']['checked_'.$req]) ){
+						// el usuario que firmo
+						$uid = $sic['Sic']['checked_'.$req];
+						$user = $this->User->read( null, $uid);
+						if($user){
+							$signs[$i] = array(
+								'name' => $user['User']['first_name'],
+								'image' => $user['User']['file_file_name'],
+								'role' => $user['User']['role']
+								);
+						}
+					}
+				}
+				$i++;
+			}
+
+			//define('K_PATH_MAIN', WWW_ROOT);
+
+			define ('K_PATH_IMAGES', WWW_ROOT);
+
+			// chequear tema de seguridad
+			App::import('Vendor', 'TCPDF', array('file' => 'tcpdf' . DS . 'tcpdf.php'));
+
+			// create new PDF document
+			$pdf = new TCPDF( 'P', 'mm', 'A4', true, 'UTF-8', false);
+
+			// set document information
+			$pdf->SetCreator('Emsetec');
+			$pdf->SetAuthor('Emsetec');
+			$pdf->SetTitle('Orden de compra');
+			$pdf->SetSubject('Orden de compra');
+			$pdf->SetKeywords('orde,compra');
+
+
+			// set margins
+			$pdf->SetMargins( 20, 30, 15);
+			$pdf->SetHeaderMargin(10);
+			$pdf->SetFooterMargin(0);
+
+			// set auto page breaks
+			$pdf->SetAutoPageBreak(TRUE, 15);
+
+			$OCNAME = str_replace( 'SIC', 'OC', $sic['Sic']['sic_number']);
+
+			if( $external == 1){
+				$pdf->SetHeaderData( 'img'.DS.'logo_login.png', 60, 'ORDEN DE COMPRA N° '.$OCNAME, 'Emsetec SRL', array(0,0,0), array(0,0,0));
+			}else{
+				$pdf->SetHeaderData( 'img'.DS.'logo_login.png', 60, 'SIC N° '.$sic['Sic']['sic_number'], 'Emsetec SRL', array(0,0,0), array(0,0,0));
+			}
+			$pdf->setHeaderFont( array( 'dejavusans', '', 11));
+			$pdf->setFooterFont( array( 'dejavusans', '', 10));
+
+			$pdf->setFontSubsetting(true);
+
+			$pdf->SetFont('dejavusans', '', 14, '', true);
+
+			$pdf->AddPage();
+
+			App::uses('TimeHelper', 'View/Helper');
+			$time = new TimeHelper(new View( null));			
+
+			$html ='';
+
+			//pr($sic);
+			//pr($signs);
+			// datos del proveedor
+			$pdf->SetFontSize( '8');
+			$html .='<div syile="font-size: 8px; font-weight: normal;">Fecha emisión: '.$time->format('d/m/Y', $sic['Sic']['date_of']).' <br />';
+
+			// la fecha la agrega sólo cuando está seteada
+			if( !empty($sic['Sic']['date_delivery']) && $sic['Sic']['date_delivery'] != '0000-00-00')$html .=' Fecha entrega: '.$time->format('d/m/Y', $sic['Sic']['date_delivery']).'<br />';
+
+			// nuevos datos solicitados en SIC (20130921)
+			$html .='Proveedor: '.$sic['Supplier']['company'].'<br />';
+			$html .='Unidad operativa: '.$sic['Center']['code'].' - '.$sic['Center']['title'].'<br />';
+
+			if( $external != 1){
+				$html .= 'Contract: N°' . $sic['Contract']['contract_number'];
+				if(!empty($sic['Contract']['title']))
+					$html .= ' - '. $sic['Contract']['title'];
+				$html.='<br />';				
+				$html .= 'Justificación: ' . htmlspecialchars($sic['Sic']['justification']) . '<br />';
+				$contractType = (isset($this->_contract_types[ $sic['Contract']['type_id'] ])) ? $this->_contract_types[ $sic['Contract']['type_id'] ] : '-';
+				$html .= 'Tipo de Contrato: '.$contractType.'<br />';
+			}
+
+			$html .= '</div>';
+
+			//$pdf->SetFontSize( '12');
+			if( $external == 1){
+				//$html.='<h1 style="margin: 0; line-height:100%; padding: 0;">'.$sic['Supplier']['company'].'</h1>';
+			}	
+
+			$html.='<h2 style="color: #666">Detalle del pedido</h2>';
+
+			$html.='<table style="border:1px solid #ccc; border-collapse:collapse;" cellpadding="2">';
+			$html.='<tr>';
+			$html.='<th style="width: 10%; background-color: #333333; color: #ffffff; font-size: 8px; padding: 10px;">Cant.</th>';
+			if( $external == 1){
+				$html.='<th style="width: 64%; background-color: #333333; color: #ffffff; font-size: 8px; padding: 10px;">Detalle</th>';
+			}else{
+				$html.='<th style="width: 16%; background-color: #333333; color: #ffffff; font-size: 8px; padding: 10px;">Rubro</th>';
+				$html.='<th style="width: 16%; background-color: #333333; color: #ffffff; font-size: 8px; padding: 10px;">Sub Rubro</th>';
+				$html.='<th style="width: 16%; background-color: #333333; color: #ffffff; font-size: 8px; padding: 10px;">Item</th>';
+				$html.='<th style="width: 16%; background-color: #333333; color: #ffffff; font-size: 8px; padding: 10px;">Detalle</th>';
+			}
+			$html.='<th style="width: 12%; background-color: #333333; color: #ffffff; font-size: 8px; padding: 10px;">Costo unit.</th>';
+			$html.='<th style="width: 12%; background-color: #333333; color: #ffffff; font-size: 8px; padding: 10px;">Subtotal</th>';
+			$html.='</tr>';
+
+			// detalle de la orden
+			foreach( $sic['SicsItem'] as $item){
+				if($item['robinson'] != 1){ // los eliminados no!
+
+					$html.='<tr>';
+					$html.='<th align="right" style="font-size: 8px; border: 1px solid #cccccc; padding: 10px;">'.$item['amount'].'</th>';
+
+					// nuevo detalle solicitado
+					if( $external == 1){
+						// si es orden de compra sólo va el detalle
+						$detail = $item['detail'];
+						$html.='<th style="font-size: 8px; border: 1px solid #cccccc; padding: 10px;">'.$detail.'</th>';
+						
+						$colspan = 3;
+
+					}else{
+
+						$colspan = 6;
+
+						$path = '->->->->';
+						if( isset($item['Item']['path']) && !empty($item['Item']['path']) )$path = $item['Item']['path'];
+
+						$splitPath = explode( '>', $path);
+						$rubro = (isset($splitPath[0]))?$splitPath[0]:'-';
+						$subrubro = (isset($splitPath[1]))?$splitPath[1]:'-';
+						//$subsubrubro = (isset($splitPath[2]))?$splitPath[2]:'-';
+						$subsubrubro = $item['Item']['title'];
+
+						$detail = '-';
+						// sólo si han cargado una descripción diferente
+						//if( $item['detail'] != $subsubrubro )$detail = $subsubrubro;
+
+						$detail = htmlspecialchars($item['detail']);
+
+						$html.='<th style="font-size: 8px; border: 1px solid #cccccc; padding: 10px;">'.$rubro.'</th>';
+						$html.='<th style="font-size: 8px; border: 1px solid #cccccc; padding: 10px;">'.$subrubro.'</th>';
+						$html.='<th style="font-size: 8px; border: 1px solid #cccccc; padding: 10px;">'.$subsubrubro.'</th>';
+						$html.='<th style="font-size: 8px; border: 1px solid #cccccc; padding: 10px;">'.$detail.'</th>';
+						
+					}					
+					$html.='<th align="right" style="font-size: 8px; border: 1px solid #cccccc; padding: 10px;">$ '.number_format( $item['unit_price'], 2, ',', '.').'</th>';
+					$html.='<th align="right" style="font-size: 8px; border: 1px solid #cccccc; padding: 10px;">$ '.number_format( $item['total_price'], 2, ',', '.').'</th>';
+					$html.='</tr>';
+				}
+			}
+
+			$html.='<tr>';
+			$html.='<th align="right" colspan="'.$colspan.'" style="border: 1px solid #cccccc; background-color: #FFFFFF; color: #333333; padding: 10px; font-size: 8px;">Subtotal:</th>';
+			$html.='<th align="right" style="border: 1px solid #cccccc; background-color: #FFFFFF; color: #333333; padding: 10px; font-size: 8px;">$ '.number_format( $sic['Sic']['total'], 2, ',', '.').'</th>';
+			$html.='</tr>';
+			$html.='<tr>';
+			$html.='<th align="right" colspan="'.$colspan.'" style="border: 1px solid #cccccc; background-color: #FFFFFF; color: #333333; padding: 10px; font-size: 8px;">IVA ('.$sic['Sic']['iva'].'%):</th>';
+			$html.='<th align="right" style="border: 1px solid #cccccc; background-color: #FFFFFF; color: #333333; padding: 10px; font-size: 8px;">$ '.number_format( $sic['Sic']['iva_total'], 2, ',', '.').'</th>';
+			$html.='</tr>';
+			$html.='<tr>';
+			$html.='<th align="right" colspan="'.$colspan.'" style="background-color: #333333; color: #ffffff; padding: 10px; font-size: 8px;">Total:</th>';
+			$html.='<th align="right" style="background-color: #333333; color: #ffffff; padding: 10px; font-size: 8px;">$ '.number_format( $sic['Sic']['total_with_iva'], 2, ',', '.').'</th>';
+			$html.='</tr>';						
+			$html.='</table>';
+
+            if($sic && $external != 1) {
+                $html.= '<br/><br/><br/><br/><table>';
+                $html.='<tr>';
+                if($sic['Sic']['required_10'] == 1 && $sic['Sic']['check_10'] ==1) {
+                    $html.='<td align="center"><div>APROBADA</div><div>------------------<br>Administrativo</div></td>';
+                }
+                if($sic['Sic']['required_20'] == 1 && $sic['Sic']['check_20'] ==1) {
+                    $html.='<td align="center"><div>APROBADA</div><div>------------------<br>JS / JO</div></td>';
+                }
+                if($sic['Sic']['required_30'] == 1 && $sic['Sic']['check_30'] ==1) {
+                    $html.='<td align="center"><div>APROBADA</div><div>------------------<br>Compras</div></td>';
+                }                    
+                if($sic['Sic']['required_40'] == 1 && $sic['Sic']['check_40'] ==1) {
+                    $html.='<td align="center"><div>APROBADA</div><div>------------------<br>Gerente Operativo</div></td>';
+                }
+                if($sic['Sic']['required_50'] == 1 && $sic['Sic']['check_50'] ==1) {
+                    $html.='<td align="center"><div>APROBADA</div><div>------------------<br>Finanzas</div></td>';
+                }
+                $html.='</tr>';
+                $html.= '</table>';
+                //$pdf->writeHTMLCell(0, 0, '', '', $html, 0, 1, 0, true, '', true);
+            }
+
+            //$pdf->writeHTMLCell(0, 0, '', '', $html, 0, 1, 0, true, '', true);
+
+			$html .= '<br />';
+			if( !empty($sic['Sic']['payment_form'])){
+				$html .= '<p style="font-size: 7px; padding-top: 30px;"><strong>Forma de pago</strong>: '.$sic['Sic']['payment_form'].'</p>';
+			}
+			if( !empty($sic['Sic']['address'])){
+				$address = $sic['Sic']['address'];
+			}else{
+				$address = $sic['Center']['address'];
+			}
+			$html.='<p style="font-size: 7px; font-weight: normal;"><strong>Dirección de entrega:</strong> '.$address.'</p>';
+
+			$pdf->writeHTMLCell(0, 0, '', '', $html, 0, 1, 0, true, '', true);
+
+			// obligo a descargar el PDF
+			$filename = ($external == 1)?$OCNAME:$sic['Sic']['sic_number'];
+			$pdf->Output( $filename.'.pdf', 'D');
+
+		}else{
+
+		}
+	}
+
+
+
+	// busca las órdenes pendientes de aprboación y notifica a los usuarios
+	/*public function send_alerts(){
+
+		$this->autoRender = false;
+		App::uses('CakeEmail', 'Network/Email');
+
+		set_time_limit( 120); // dos minutos
+
+		$options = array(
+			'recursive' => -1,
+			'conditions' => array(
+				'Sic.closed' => 0 // las que no están cerradas
+				)
+			);
+
+		$sics = $this->Sic->find('all', $options);
+
+		// alertas se envían (de ser necesario a los jefes o solo al personal de ese centro)
+		$permissions = array( 10,20,30,40,50);
+		
+
+		foreach( $sics as $sic){
+
+			$notifyTo = array();			
+
+			foreach( $permissions as $perm ){
+
+				if( $sic['Sic']['required_'.$perm] == 1 && $sic['Sic']['check_'.$perm] != 1 ){
+
+					// permiso requerido sin cumplir
+					if( $perm == 10 || $perm == 20){
+
+						// recupero los usuarios de ese tipo del lugar de donde es la SIC
+						$options = array( 
+							'recursive' => -1,
+							'conditions' => array(
+								'User.role' => $perm,
+								'User.center_id' => $sic['Sic']['center_id']
+								)
+							);
+					}else{
+						// busco a los usuarios globales
+						$options = array( 
+							'recursive' => -1,
+							'conditions' => array(
+								'User.role' => $perm
+								)
+							);						
+					}
+					$users = $this->Sic->Center->User->find( 'all', $options);
+
+					if( $users){
+						foreach( $users as $user){
+							$notifyTo[ $user['User']['email'] ] = $user['User']['first_name'];
+						}
+					}
+
+				}
+			}
+
+			// notifica a los usuarios interesados
+			if( count($notifyTo) > 0 ){
+
+				$emailTitle = 'EMSETEC SIC - Orden de pago pendiente de aprobar';
+
+				$emailContent = 'La orden N° <strong>'.$sic['Sic']['sic_number'].'</strong> se encuentra pendiende de aprobación<br />';
+				$emailContent .= '<a href="'.Router::url( array( 'prefix' => 'admin', 'controller' => 'sics', 'action' => 'index', 'sic_id' => $sic['Sic']['sic_number'] ) , true).'" target="_blank">click aquí para visualizarla</a>';
+
+
+				$email = new CakeEmail(); // soma la configuración correspondiente a 'smtp'
+
+				$email->helpers(array('Html'));
+				
+				$email->emailFormat('html');
+
+				$email->to( $notifyTo);
+
+				$email->from( 'EMSETEC SIC <no-reply@demo24@envero.org>');
+
+				$email->subject( $emailTitle  );
+
+				if( $email->send( $emailContent ) ){
+
+				}
+
+
+		}
+
+	
+
+
+	}*/
+
+	// busca las órdenes pendientes de aprboación y notifica a los usuarios
+	public function send_alerts(){
+
+		$this->autoRender = false;
+		App::uses('CakeEmail', 'Network/Email');
+
+		set_time_limit( 120); // dos minutos
+
+		$options = array( 
+			'recursive' => -1,
+			'conditions' => array(
+				'User.active' => 1
+				)
+			);						
+		
+		$users = $this->Sic->Center->User->find( 'all', $options);
+
+		$myCache = array();	
+
+		foreach( $users as $user){
+			
+			$perm = $user['User']['role'];
+
+			if( $perm == 10 || $perm == 20 || $perm == 60){
+				
+				$key = 'perm_'.$perm.'_center_'.$user['User']['center_id'];
+
+				// busco órdenes sólo de su unidad o centro
+				$options = array(
+					'recursive' => -1,
+					'conditions' => array(
+						'Sic.closed' => 0, // las que no están cerradas
+						'Sic.center_id' => $user['User']['center_id'],
+						'Sic.required_'.$perm => 1,
+						'Sic.check_'.$perm.' <>' => 1
+						)
+					);				
+
+
+			}else{
+				
+				$key = 'perm_'.$perm;
+
+				// para los demás no importa de que centro son
+				$options = array(
+					'recursive' => -1,
+					'conditions' => array(
+						'Sic.closed' => 0,
+						'Sic.required_'.$perm => 1,
+						'Sic.check_'.$perm.' <>' => 1
+						)
+					);					
+			}
+			
+			// si ya he hecho la búqueda le envio el mismo listado al usuario
+			if( isset( $myCache[$key]) ){
+				$sics = $myCache[$key];
+			}else{
+				//echo '<pre>'.print_r($options ,true).'</pre>';
+				$sics = $this->Sic->find('all', $options);
+				$myCache[ $key ] = $sics;
+			}	
+
+
+			if( $sics){
+
+				$emailTitle = 'EMSETEC SICs - Ordenes de compra pendientes';
+				$emailContent = 'Listado de órdenes pendientes de aprobación:<br />';
+				foreach( $sics as $sic){
+					$emailContent .= '<br />La orden N° <strong>'.$sic['Sic']['sic_number'].'</strong> se encuentra pendiende de aprobación. ';
+					$emailContent .= '<a href="'.Router::url( array( 'admin' => true, 'prefix' => 'admin', 'controller' => 'sics', 'action' => 'index', 'sic_id' => $sic['Sic']['id'] ) , true).'" target="_blank">Ver</a>. <br />';
+				}
+
+				$email = new CakeEmail(); // soma la configuración correspondiente a 'smtp'
+				$email->helpers(array('Html'));
+				$email->emailFormat('html');
+				$to = array();
+				$to[ $user['User']['email'] ] = $user['User']['first_name'];
+				$email->to( $to);
+				$from = array();
+				$from['no-reply@envero.org'] = 'Emsetec SICs';				
+				$email->from($from);
+				$email->subject( $emailTitle  );
+				if( $email->send( $emailContent ) ){
+					// envio correctoo
+				}
+			}			
+
+		}
+
+	}	
+
+	public function applyFilters(){
+
+		$role = $this->Auth->user('role');
+		$authUserId = $this->Auth->user('id');
+
+		// tipo de SIC
+		$type = $this->Session->read('App.Sic.type');
+
+		$sic_number = $this->Session->read('App.Sic.sic_number');
+		if(!empty($sic_number)){
+			$this->paginate['conditions']['Sic.sic_number LIKE'] = '%'.$sic_number.'%';
+			$this->request->data['Search']['sic_number'] = $sic_number;
+		}
+		$invoice_number = $this->Session->read('App.Sic.invoice_number');
+		if(!empty($invoice_number)){
+			$invoiceNumber = split('-', $invoice_number);
+			$this->paginate['conditions']['InvoicesOc.invoice_oc_branch'] = $invoiceNumber[0];
+			$this->paginate['conditions']['InvoicesOc.invoice_oc_number'] = $invoiceNumber[1];			
+			$this->request->data['Search']['invoice_number'] = $invoice_number;
+		}
+		$contract_id = $this->Session->read('App.Sic.contract_id');
+		if(!empty($contract_id)){
+			$this->paginate['conditions']['Sic.contract_id'] = $contract_id;
+			$this->request->data['Search']['contract_id'] = $contract_id;
+		}	
+		$eventual_contract_id = $this->Session->read('App.Sic.eventual_contract_id');
+		if(!empty($eventual_contract_id)){
+            $this->paginate['conditions']['Sic.eventual_contract_id'] = $eventual_contract_id;
+			$this->request->data['Search']['eventual_contract_id'] = $eventual_contract_id;
+		}	
+		$sic_id = $this->Session->read('App.Sic.sic_id');
+		if(!empty($sic_id)){
+			$this->paginate['conditions']['Sic.id'] = $sic_id;
+			//$this->request->data['Search']['contract_id'] = $contract_id;
+		}
+		// centro
+		$center_id = $this->Session->read('App.Sic.center_id');
+		if(!empty($center_id)){
+			$this->paginate['conditions']['Sic.center_id'] = $center_id;
+			$this->request->data['Search']['center_id'] = $center_id;
+		}
+		// unidades operativas
+		$operation_unit_id = $this->Session->read('App.Sic.operation_unit_id');
+		if(!empty($operation_unit_id) && count($operation_unit_id) > 0){
+			$centers = $this->Sic->Center->find('list', array(
+				'conditions' => array(
+					'Center.operation_unit_id' => $operation_unit_id
+				)));
+			$this->paginate['conditions']['OR'] = array(
+				'Sic.operation_unit_id' => $operation_unit_id,
+				'Sic.center_id' => array_keys($centers)
+			);
+			$this->request->data['Search']['operation_unit_id'] = $operation_unit_id;
+		}
+		// Aprobado, Pendiente y Clidad
+		$sic_status_id = $this->Session->read('App.Sic.sic_status_id');
+		if(!empty($sic_status_id)){
+            switch($sic_status_id) {
+                case 1:
+                    $this->paginate['conditions']['Sic.closed'] = 0;
+                    $this->request->data['Search']['sic_status_id'] = 1;
+                    break;
+                case 2:
+                    $this->paginate['conditions']['Sic.closed'] = 1;
+                    $this->request->data['Search']['sic_status_id'] = 2;
+                    break;
+                case 3:
+                    $this->paginate['conditions']['Sic.closed'] = 1;
+                    $this->paginate['conditions']['Sic.check_80'] = 0;
+                    $this->paginate['conditions']['Sic.required_80'] = 0;
+                    $this->request->data['Search']['sic_status_id'] = 3;
+                    break;
+                case 4:
+                    $this->paginate['conditions']['Sic.closed'] = 1;
+                    $this->paginate['conditions']['Sic.check_80'] = 1;
+                    $this->paginate['conditions']['Sic.required_80'] = 0;
+                    $this->request->data['Search']['sic_status_id'] = 4;
+                    break;
+                case 5:
+                    $this->paginate['conditions']['Sic.sp_status_id'] = 2;
+                    $this->paginate['conditions']['InvoicesOc.invoice_oc_ab_status_id <>'] = 2;
+                    $this->request->data['Search']['sic_status_id'] = 5;
+                    break;
+                case 6:
+                    $this->paginate['conditions']['InvoicesOc.invoice_oc_ab_status_id'] = 2;
+                    $this->request->data['Search']['sic_status_id'] = 6;
+                    break;
+                case 7:
+                	$this->paginate['conditions']['OR'] = array(
+                		'Sic.rejected_10' => 1, 
+                		'Sic.rejected_20' => 1, 
+                		'Sic.rejected_30' => 1, 
+                		'Sic.rejected_40' => 1, 
+                		'Sic.rejected_50' => 1, 
+                		'Sic.rejected_90' => 1, 
+                		'Sic.rejected_sp' => 1, 
+                	);
+                    $this->request->data['Search']['sic_status_id'] = 7;
+                    break;
+                case 8:
+                	$this->paginate['conditions']['Sic.closed'] = 1;
+                	$this->paginate['conditions']['Sic.sp_status_id'] = 2;
+                    $this->paginate['conditions']['InvoicesOc.invoice_oc_ab_status_id <>'] = 2;
+                    $this->paginate['conditions']['DATE(InvoicesOc.invoice_oc_date_expiration) <'] = date('Y-m-d');
+                    $this->request->data['Search']['sic_status_id'] = 8;
+                    break;
+                case 9:
+                	$this->paginate['conditions']['Sic.closed'] = 1;
+                	$this->paginate['conditions']['Sic.sp_status_id'] = 2;
+                    $this->paginate['conditions']['InvoicesOc.invoice_oc_ab_status_id <>'] = 2;
+                    $this->request->data['Search']['sic_status_id'] = 9;
+                    break;
+                case 10:
+                	$this->paginate['conditions']['Sic.associated_invoice_oc_id'] = null;
+                	$this->paginate['conditions']['Sic.closed <>'] = 1;
+                	$this->request->data['Search']['sic_status_id'] = 10;
+                	break;
+            }
+		}
+
+		// proveedor
+		$supplier_id = $this->Session->read('App.Sic.supplier_id');
+		if(!empty($supplier_id)){
+			$this->paginate['conditions']['Sic.supplier_id'] = $supplier_id;
+			$this->request->data['Search']['supplier_id'] = $supplier_id;
+		}
+
+		// rubros
+		$categoryId = $this->Session->read('App.Sic.item_category_id');
+
+		// fecha inicio
+		$date_start = $this->Session->read('App.Sic.date_start');
+		if(!empty($date_start)){
+			$d = split('-', $date_start);
+			$this->paginate['conditions']['Sic.date_of >='] = $d[2].'-'.$d[1].'-'.$d[0];
+			$this->set('date_start', $date_start);
+		} elseif(!empty($this->request->params['pass'][1])) {
+			//pr($this->request->params['pass'][1]);
+			$this->paginate['conditions']['Sic.id'] = $this->request->params['pass'][1];
+		} elseif(!empty($sic_number)) {
+			//
+		} elseif(!empty($categoryId)) {
+			//
+		} elseif(!empty($sic_status_id)) {
+			//
+		} else {
+			$this->paginate['conditions']['Sic.date_of >='] = $this->Sic->getStartPeriod();
+		}
+
+		// fecha fin
+		$date_end = $this->Session->read('App.Sic.date_end');
+		if(!empty($date_end)){
+			$d = split('-', $date_end);
+			$this->paginate['conditions']['Sic.date_of <='] = $d[2].'-'.$d[1].'-'.$d[0];
+			$this->set('date_end', $date_end);
+		}
+
+		// muestra los de su rol que no están aprobados
+		// Solo para SIC comunes
+		$only_my_role = $this->Session->read('App.Sic.only_my_role');
+		if(!empty($only_my_role) && $only_my_role == 1){
+			$role = $this->Auth->user('role') == 60 ? 20 : $this->Auth->user('role');
+			$this->request->data['Search']['only_my_role'] = 1;
+			$this->paginate['conditions'] = array_merge( $this->paginate['conditions'], array('Sic.closed <>' => 1, 'Sic.required_'.$role  => 1, 'Sic.check_'.$role.' <>' => 1));
+		}
+
+		// rubros
+		if(!empty($categoryId)){
+            $this->loadModel('SicsItem');
+
+            if(!empty($date_start)) {
+            	$d = split('-', $date_start);
+            	$date_start = $d[2].'-'.$d[1].'-'.$d[0];
+            }
+
+            if(!empty($date_end)) {
+            	$d = split('-', $date_end);
+            	$date_end = $d[2].'-'.$d[1].'-'.$d[0];
+            }
+
+            $sicsByItemCategory = $this->SicsItem->getSicsByItemCategory($categoryId, $date_start, $date_end);            
+			$this->paginate['conditions']['Sic.id'] = $sicsByItemCategory;
+			$this->request->data['Search']['item_category_id'] = $categoryId;
+		}
+
+		// administrativo o jefe de sitio sólo muestro las de su centro ----------------------
+		// solo para SIC comunes
+//		$role = $this->Auth->user('role');
+//		if( in_array( $role, array(10,20,60))  && $type != 'ff' ){
+//			$this->paginate['conditions']['Sic.center_id'] = $this->Auth->user('center_id');
+//		}
+		// end filtro por sitio --------------------------------------------------------------
+
+		// solo para FF tengo dos filtros nuevos
+		if( $type == 'ff'){
+			// encargado de obra
+			$q = $this->Session->read('App.Sic.store_manager_id');
+			if(!empty($q)){
+				$this->paginate['conditions']['Sic.store_manager_id'] = $q;
+				$this->set('store_manager_id', $q);
+			}
+			// ya rendidas
+			$q = $this->Session->read('App.Sic.ff_finished');
+			if(!empty($q) && $q == 1){
+				$this->paginate['conditions']['Sic.status_id'] = 10;
+				$this->set('ff_finished', $q);
+			}
+
+			// nro de comprobante(factura)
+			$sicReceipt = $this->Session->read('App.Sic.receipt');
+			if(!empty($sicReceipt)){
+				$sicMovements = $this->Sic->SicsMovement->find('list', array(
+					'fields' => array('SicsMovement.sic_id'),
+					'conditions' => array('SicsMovement.receipt LIKE' => '%'.$sicReceipt.'%')
+				));
+				if(count($sicMovements) > 0) {
+					$this->paginate['conditions']['Sic.id'] = $sicMovements;
+					$this->request->data['Search']['receipt'] = $sicReceipt;
+				}
+			}
+		}
+
+		switch( $type){
+			case 'sic':
+				$this->set('_nav', "sics");
+				$this->set('_nav_sub', "index");
+				$this->set('listTitle', 'SICs activas');
+				$this->paginate['conditions']['Sic.type_id'] = [1,2,4];
+				break;
+			case 'ff': // fondo fijo
+				$this->set('_nav', "ff");
+				$this->set('_nav_sub', "index");
+				$this->set('listTitle', 'Solicitudes Fondo Fijo');
+				
+				$this->paginate['conditions']['Sic.type_id'] = 3;
+				break;
+			case 'mo': // mano de obra
+				$this->set('_nav', "mo");
+				$this->set('_nav_sub', "index");
+				$this->set('listTitle', 'Solicitudes Mano de Obra');
+				
+				$this->paginate['conditions']['Sic.type_id'] = 20;
+				break;
+		}
+		$this->set('type', $type);
+		return;		
+	}
+	
+	public function updateTotalCost($id = false)
+	{
+		$evt = $this->EventualContract->read(null, $id);
+		
+		$options = array(
+			'fields' => array('sum(Sic.total) as sictotal'),
+			'conditions' => array('Sic.closed' => 1,'Sic.robinson'=>0,'Sic.contract_type_id'=>1,'Sic.eventual_contract_id'=>$id)
+		);
+		
+		$sictotal = $this->EventualContract->Sic->find('first', $options);
+		$monto_sic = $sictotal[0]['sictotal'];
+		if(!isset($monto_sic)){$monto_sic=0;}
+		
+		$total_cost = $monto_sic+
+					$evt['EventualContract']['labor']+
+					$evt['EventualContract']['fixedcost']+
+					$evt['EventualContract']['othercost'];
+					
+		$dataToUpdate = array('id' => $id,'cost' => $monto_sic, 'total_cost' => $total_cost);
+		$this->EventualContract->save( $dataToUpdate, false);
+		
+		return;
+	}	
+
+    public function admin_getRatingSupplier() {
+        $this->autoRender = false;
+        $data = array();
+        $this->loadModel('RatingSupplier');
+        $supplierId = $this->request->query['supplierId'];
+        $ratingSupplier = $this->RatingSupplier->find('all', array(
+            'conditions' => array(
+                'RatingSupplier.supplier_id' => $supplierId,
+                'RatingSupplier.robinson' => 0
+                ),
+            'order' => 'RatingSupplier.created DESC'
+            ));
+        if($ratingSupplier) {
+            foreach($ratingSupplier as $rs) {
+                $data[] = array(
+                    'sic_number' => $rs['Sic']['sic_number'],
+                    'delivery_quality' => $rs['RatingSupplier']['delivery_quality'],
+                    'purchase_satisfaction' => $rs['RatingSupplier']['purchase_satisfaction']+1,
+                    'satisfaction_comment' => $rs['RatingSupplier']['satisfaction_comment'],
+                    'user_comment' => $rs['User']['first_name']);
+            }          
+        }
+        die(json_encode($data));       
+    }
+    
+	public function admin_get_excel_aprobaciones() {
+		$this->autoRender = false;
+		set_time_limit(0);
+        // $sics = $this->Sic->SicsStatusesLog->find('all', array(
+        // 	'conditions' => array('SicsStatusesLog.created > DATE(NOW()) - INTERVAL 3 MONTH')
+        // ));
+		// pr($sics); exit;
+		$sics = $this->Sic->query("SELECT
+			SicsStatusesLog.sic_id,
+			SicsStatusesLog.role, 
+			SicsStatusesLog.created, 
+			Sic.sic_number,
+			Sic.check_sp_date,
+			InvoicesOc.invoice_oc_ab_status_id,
+			InvoicesOc.updated
+			FROM sics_statuses_logs SicsStatusesLog 
+			LEFT JOIN sics Sic ON SicsStatusesLog.sic_id = Sic.id
+			LEFT JOIN invoices_ocs InvoicesOc ON Sic.associated_invoice_oc_id = InvoicesOc.id
+			WHERE 
+				SicsStatusesLog.created > DATE(NOW()) - INTERVAL 3 MONTH
+				AND Sic.robinson <> 1");        
+
+        $sicsOrdered = array();
+        foreach($sics as $sic) {
+            $sicsOrdered[$sic['SicsStatusesLog']['sic_id']]['sic_number'] = $sic['Sic']['sic_number'];
+            $sicsOrdered[$sic['SicsStatusesLog']['sic_id']][$sic['SicsStatusesLog']['role']] = $sic['SicsStatusesLog']['created'];
+            $sicsOrdered[$sic['SicsStatusesLog']['sic_id']]['sp'] = $sic['Sic']['check_sp_date'];
+            if($sic['InvoicesOc']['invoice_oc_ab_status_id'] == 2) {
+            	$sicsOrdered[$sic['SicsStatusesLog']['sic_id']]['ab'] = $sic['InvoicesOc']['updated'];
+            } else {
+            	$sicsOrdered[$sic['SicsStatusesLog']['sic_id']]['ab'] = '';
+            }
+        }
+
+        App::uses('TimeHelper', 'View/Helper');
+        App::import('Vendor', 'PHPExcel', array('file' => 'PHPExcel' . DS . 'Classes' . DS . 'PHPExcel.php'));
+		$this->autoRender = false;
+		$time = new TimeHelper(new View( null));        
+        $spreadsheet = new PHPExcel();
+		if( count($sics) > 0 ) {
+            $spreadsheet->getProperties()->setCreator('Emsetec Facility Management')
+                    ->setLastModifiedBy($this->Auth->user('first_name'))
+                    ->setTitle('Reporte SICs historico de aprobaciones')
+                    ->setSubject('Reporte SICs historico de aprobaciones')
+                    ->setDescription('Reporte SICs historico de aprobaciones')
+                    ->setKeywords('reporte sics historico de aprobaciones')
+                    ->setCategory('Reporte SICs historico de aprobaciones');
+            // Set Columns Names
+            $spreadsheet->setActiveSheetIndex(0)
+                    ->setCellValue('A1', 'SIC #')
+                    ->setCellValue('B1', 'Administrativo')
+                    ->setCellValue('C1', 'Jefe de Sitio')
+                    ->setCellValue('D1', 'Jefe de Obra')
+                    ->setCellValue('E1', 'Gerente Técnico')
+                    ->setCellValue('F1', 'Finanzas')
+                    ->setCellValue('G1', 'Solicitud de Pago')
+                    ->setCellValue('H1', 'Abonada');            
+            // ABCDEFGHIJKLMNOPQR
+            $rowNumber = 2;
+            foreach($sicsOrdered as $sic) {
+                $spreadsheet->setActiveSheetIndex(0)
+                    ->setCellValue('A' . $rowNumber, $sic['sic_number'])
+                    ->setCellValue('B' . $rowNumber, isset($sic[10]) ? date('d/m/Y', strtotime($sic[10])) : '')
+                    ->setCellValue('C' . $rowNumber, isset($sic[20]) ? date('d/m/Y', strtotime($sic[20])) : '')
+                    ->setCellValue('D' . $rowNumber, isset($sic[60]) ? date('d/m/Y', strtotime($sic[60])) : '')
+                    ->setCellValue('E' . $rowNumber, isset($sic[90]) ? date('d/m/Y', strtotime($sic[90])) : '')
+                    ->setCellValue('F' . $rowNumber, isset($sic[50]) ? date('d/m/Y', strtotime($sic[50])) : '')
+                    ->setCellValue('G' . $rowNumber, (isset($sic['sp']) && !empty($sic['sp'])) ? date('d/m/Y', strtotime($sic['sp'])) : '')
+                    ->setCellValue('H' . $rowNumber, (isset($sic['ab']) && !empty($sic['ab'])) ? date('d/m/Y', strtotime($sic['ab'])) : '');
+                $rowNumber++;
+            }
+        }
+        // Rename worksheet
+        $spreadsheet->getActiveSheet()->setTitle('SICs historico de aprobaciones');
+        // Set active sheet index to the first sheet, so Excel opens this as the first sheet
+        $spreadsheet->setActiveSheetIndex(0);
+        // Redirect output to a client’s web browser (Xls)
+        header('Content-Type: application/vnd.ms-excel');
+        header('Content-Disposition: attachment;filename="SICs-historico-aprobaciones.xls"');
+        header('Cache-Control: max-age=0');
+        // If you're serving to IE 9, then the following may be needed
+        header('Cache-Control: max-age=1');
+        // If you're serving to IE over SSL, then the following may be needed
+        header('Expires: Mon, 26 Jul 1997 05:00:00 GMT'); // Date in the past
+        header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT'); // always modified
+        header('Cache-Control: cache, must-revalidate'); // HTTP/1.1
+        header('Pragma: public'); // HTTP/1.0
+        $writer = PHPExcel_IOFactory::createWriter($spreadsheet, 'Excel5');
+        $writer->save('php://output');            
+        exit;                        
+	}
+    
+    public function admin_getEventualContractList() {
+        $centerId = $this->request->query['centerId'];
+        $options = array(
+            'fields' => array('EventualContractBudget.id', 'EventualContractBudget.full_contract'),
+            'conditions' => array(
+                    'EventualContractBudget.contract_number <> ""',
+                    'EventualContractBudget.robinson <> 1',
+                    'EventualContractBudget.center_id IN (' . implode(',', $centerId) . ')'));
+        $eventualContracts = $this->Sic->EventualContract->EventualContractBudget->find('list', $options);
+        $options = '';
+        if($eventualContracts) {
+            natsort($eventualContracts);
+            foreach($eventualContracts as $key => $val) {
+                $options .= '<option value="'.$key.'">'.$val.'</option>';
+            }
+        }
+        die($options);
+    }
+
+    public function admin_getContractList() {
+        $centerId = $this->request->query['centerId'];
+		$optionsContract = array(
+			'fields' => array('Contract.id', 'Contract.full_contract'),
+            'conditions' => array(
+                    'Contract.contract_number IS NOT NULL',
+                    'Contract.contract_number <> ""',
+                    'Contract.robinson <> 1',
+                    'Contract.center_id IN (' . implode(',', $centerId) . ')'));
+        $contracts = $this->Sic->Contract->find('list', $optionsContract);
+        asort($contracts);
+        die(json_encode($contracts));
+    }
+    
+    public function admin_getLocationList() {
+        $centerId = $this->request->query['centerId'];
+        $this->loadModel('EventualContractBudget');
+		$optionsLocations = array(
+			'fields' => array('EventualContractBudget.location', 'EventualContractBudget.location'),
+			'conditions' => array(
+				'EventualContractBudget.location != ""',
+				'EventualContractBudget.location != "0"'));
+        if(!empty($centerId)) {
+            $optionsLocations['conditions'][count($optionsLocations['conditions'])]['EventualContractBudget.center_id'] = $centerId;
+        }        
+        $locations = $this->EventualContractBudget->find('list', $optionsLocations);
+        array_unique($locations);
+        asort($locations);
+        die(json_encode($locations));
+    }
+    
+    public function saveLog($sicId, $userId, $role, $redirect = true) {
+        $this->Sic->SicsStatusesLog->set('sic_id', $sicId);
+        $this->Sic->SicsStatusesLog->set('user_id', $userId);
+        $this->Sic->SicsStatusesLog->set('role', $role);
+        $this->Sic->SicsStatusesLog->save();
+        if($redirect) {
+        	$this->admin_back(array('action' => 'index'));        
+        }
+    }
+    
+	public function admin_get_csv_mo() {
+        $this->autoRender = false;
+        set_time_limit(0);
+        header("Content-type: application/vnd.ms-excel");
+        header("Content-disposition: attachment; filename=sics_export_mo.csv");
+        header("Pragma: no-cache");
+        header("Expires: 0");
+        App::uses('TimeHelper', 'View/Helper');
+        $time = new TimeHelper(new View(null));
+        $this->loadModel('User');
+        $users = $this->User->find('list', array('fields' => array('User.id', 'User.first_name')));
+        $this->paginate['conditions']['Sic.robinson <>'] = 1;
+
+        if(empty($this->Session->read('App.Sic.date_start'))) {
+			$this->paginate['conditions']['Sic.date_of >='] = date('Y-01-01');
+		}
+
+
+		$this->paginate['contain'] = array(
+            'Center',
+            'EventualContract' => array('EventualContractBudget'));  
+        $this->Sic->Behaviors->attach('Containable');
+        $this->applyFilters();
+        $items = $this->Sic->find('all', $this->paginate);
+        $headers = ['Fecha', utf8_encode('N° Sic'), 'Contrato Nro', 'Unidad operativa', 'Responsable(JO/JS)', 'Tipo', 'Contrato', 'Estado', 'Importe'];
+        echo utf8_decode(implode(';', $headers)) . "\n";
+        if($items) {
+            foreach($items as $item) {
+                $line = [];
+                $line[] = $time->format('d/m/Y', $item['Sic']['created']);
+                $line[] = $item['Sic']['sic_number'];
+                $line[] = $item['Sic']['contract_type_id'] == 1 ? $item['EventualContract']['EventualContractBudget']['contract_number'] : $item['Contract']['contract_number'];
+                $line[] = utf8_encode($item['Center']['title']);
+                $line[] = $item['Sic']['contract_type_id'] == 1 ? utf8_encode($users[$item['EventualContract']['EventualContractBudget']['jefeobra_id']]) : utf8_encode($users[$item['Contract']['user_id']]);
+                $line[] = $this->viewVars['_order_types'][$item['Sic']['type_id']] ? $this->viewVars['_order_types'][$item['Sic']['type_id']] : '-';
+                $line[] = $this->viewVars['_contract_type'][$item['Sic']['contract_type_id']];
+                $line[] = $item['Sic']['closed'] == 1 ? 'Aprobada' : 'Pendiente';
+                $line[] = number_format($item['Sic']['total'], 2, ',', '');
+                echo utf8_decode(implode(';', $line)) . "\n";
+            }
+        }
+        die();
+    }
+
+    public function getRatingSupplier() {
+        $this->autoRender = false;
+        $data = array();
+        $this->loadModel('RatingSupplier');
+        $supplierId = $this->request->query['supplierId'];
+        $ratingSupplier = $this->RatingSupplier->getSupplierRating($supplierId);
+        if($ratingSupplier) {
+            $data = $ratingSupplier;
+        }
+        die(json_encode($data));       
+    }
+
+	public function admin_payment_proof($sicId = false) {
+		/*
+		ALTER TABLE `sics`
+CHANGE `fpayment_proof_file_name` `fpayment_proof_1_file_name` varchar(255) COLLATE 'utf8_general_ci' NULL AFTER `fcost_3_file_name`;
+		ALTER TABLE `sics`
+ADD `fpayment_proof_2_file_name` varchar(255) COLLATE 'utf8_general_ci' NULL AFTER `fpayment_proof_1_file_name`;
+		ALTER TABLE `sics`
+ADD `fpayment_proof_3_file_name` varchar(255) COLLATE 'utf8_general_ci' NULL AFTER `fpayment_proof_2_file_name`;
+		ALTER TABLE `sics`
+ADD `fpayment_proof_4_file_name` varchar(255) COLLATE 'utf8_general_ci' NULL AFTER `fpayment_proof_3_file_name`;
+		ALTER TABLE `sics`
+ADD `fpayment_proof_5_file_name` varchar(255) COLLATE 'utf8_general_ci' NULL AFTER `fpayment_proof_4_file_name`;
+		ALTER TABLE `sics`
+ADD `payment_details` varchar(255) COLLATE 'utf8_general_ci' NULL AFTER `fpayment_proof_5_file_name`;
+*/
+		$role = $this->Auth->user('role');
+        $authUserId = $this->Auth->user('id');
+        $this->set('authUserId', $authUserId);
+		$this->checkLevel( array(10, 40, 50) );
+		$this->set('title_for_layout', 'Comprobante de Pago');
+		$this->set('_nav', "sics");
+		$this->helpers[] = 'Uploader';
+				
+		if ($this->request->is('post')||$this->request->is('put')) {
+			unset($this->Sic->validate);
+			// auditoría
+			$this->request->data[ $this->modelClass ]['updated_user_id'] = $this->Session->read('Auth.User.id');
+			$this->Sic->set($this->request->data);
+            
+			if( $this->Sic->save()) {
+				$this->Session->setFlash('<a class="close" data-dismiss="alert" href="#">×</a> '. __("Data has been saved successfully", true), 'default', array( 'class' => 'alert alert-success') );
+				$this->redirect(array('controller' => 'sics', 'action' => 'index', 'sics') );
+			}
+			
+		} else if (!empty($sicId)) {
+			$this->request->data = $this->Sic->read(null, $sicId);
+		}
+						
+	}
+
+	public function admin_date_payment($sicId = false) {
+		$role = $this->Auth->user('role');
+        $authUserId = $this->Auth->user('id');
+        $this->set('authUserId', $authUserId);
+        $this->set('loadJQueryUI', true);
+		$this->checkLevel( array(10, 40, 50) );
+		$this->set('title_for_layout', 'Fecha de Pago');
+		$this->set('_nav', "sics");
+				
+		if ($this->request->is('post')||$this->request->is('put')) {
+			unset($this->Sic->validate);
+			if(!empty($this->request->data[ $this->modelClass ]['date_payment'])){
+				$date = explode('-', $this->request->data[ $this->modelClass ]['date_payment']);
+				$this->request->data[ $this->modelClass ]['date_payment'] = $date[2].'-'.$date[1].'-'.$date[0];
+			}
+
+			// auditoría
+			$this->request->data[ $this->modelClass ]['updated_user_id'] = $this->Session->read('Auth.User.id');
+			$this->Sic->set($this->request->data);
+            
+			if( $this->Sic->save()) {
+				$this->Session->setFlash('<a class="close" data-dismiss="alert" href="#">×</a> '. __("Data has been saved successfully", true), 'default', array( 'class' => 'alert alert-success') );
+				$this->redirect(array('controller' => 'sics', 'action' => 'index', 'sics') );
+			}	
+		} else if (!empty($sicId)) {
+			$this->request->data = $this->Sic->read(null, $sicId);
+		}				
+	}
+
+
+	public function admin_associated_invoice($sicId = null) {
+		$role = $this->Auth->user('role');
+        $authUserId = $this->Auth->user('id');
+		$invoicesOcList = '';
+        $this->set('authUserId', $authUserId);
+        $this->set('loadJQueryUI', true);
+		$this->checkLevel( array(10, 30, 40, 50) );
+		$this->set('title_for_layout', 'Factura Asociada');
+		$this->set('_nav', "sics");
+		$this->helpers[] = 'Uploader';
+				
+		if ($this->request->is('post')||$this->request->is('put')) {
+			unset($this->Sic->validate);
+
+			// auditoría
+			$this->request->data[ $this->modelClass ]['updated_user_id'] = $this->Session->read('Auth.User.id');
+			$this->Sic->set($this->request->data);
+			if( $this->Sic->save()) {
+				$this->Sic->Supplier->id = $this->request->data['Sic']['supplier_id'];
+				$this->Sic->Supplier->saveField('contact_email', $this->request->data['Sic']['supplier_notification_email']);
+				$this->Session->setFlash('<a class="close" data-dismiss="alert" href="#">×</a> '. __("Data has been saved successfully", true), 'default', array( 'class' => 'alert alert-success') );
+				$this->redirect(array('controller' => 'sics', 'action' => 'index', 'sics') );
+			}	
+		} elseif(!is_null($sicId)) {
+			$sic = $this->Sic->read(null, $sicId);
+			$this->request->data = $sic;
+
+			$this->loadModel('InvoicesOc');
+			$invoicesOcList = $this->InvoicesOc->find('list', array(
+				'fields' => array('id', 'invoice_oc_full_number'),
+				'conditions' => array(
+					'invoice_oc_ab_status_id <>' => 2,
+					'supplier_id' => $sic['Supplier']['id'],
+				)
+			));
+		}
+
+		$this->set('model', $this->modelClass);
+		$this->set('invoicesOcList', $invoicesOcList);
+	}
+
+	public function admin_update_sic_statuses() {
+		$localhost = false;
+		$now = new \Datetime('now');
+		$updatedDatetime = $now->format('Y-m-d H:i:s');
+		$authUserId = $this->Auth->user('id');
+		$role = $this->Auth->user('role');
+		$sicId = $this->request->data['sicId'];
+		$statusId = $this->request->data['statusId'];
+		$perfilId = $this->request->data['perfilId'];
+
+        App::uses('TimeHelper', 'View/Helper');
+        $time = new TimeHelper(new View(null));		
+
+		if($this->request->is('get')) {
+			$sicId = $this->request->query['sicId'];
+		}
+
+		$item = $this->Sic->read(null, $sicId);
+
+		//if(in_array($perfilId, array(10, 20, 30, 40, 50, 90)) && in_array($statusId, array(1, 2, 3, 4))) {
+		if ($this->request->is('post') || $this->request->is('put')) {
+			if($perfilId == 10 && in_array($statusId, array(2, 3, 4))) {
+				if($statusId == 2) {
+					// Aprobar
+					$updateData = array(
+						'check_10' => 1,
+						'checked_10' => $authUserId,
+						'check_10_date' => $updatedDatetime,
+						'rejected_10' => 0, 'rejected_20' => 0, 'rejected_30' => 0, 'rejected_40' => 0, 'rejected_50' => 0,'rejected_90' => 0,'rejected_sp' => 0,
+						'sp_status_id' => 0,
+						'closed' => $item['Sic']['total'] < $this->Sic->amountAD ? 1 : 0
+					);					
+				} elseif($statusId == 3) {
+					// Rechazar
+					$updateData = array(
+						'check_10' => 0, 'check_20' => 0, 'check_30' => 0, 'check_40' => 0, 'check_50' => 0, 'check_90' => 0,
+						'checked_10' => 0, 'checked_20' => 0, 'checked_30' => 0, 'checked_40' => 0, 'checked_50' => 0, 'checked_90' => 0,
+						'rejected_10' => 1, 'rejected_20' => 0, 'rejected_30' => 0, 'rejected_40' => 0, 'rejected_50' => 0,'rejected_90' => 0,'rejected_sp' => 0,
+						'check_10_date' => null, 'check_20_date' => null, 'check_30_date' => null, 'check_40_date' => null, 'check_50_date' => null, 'check_90_date' => null,
+						'sp_status_id' => 0,
+						'closed' => 0
+					);					
+				} elseif($statusId == 4) {
+					// Eliminar
+					$updateData = array('robinson' => 1);
+				}
+			}
+
+			// JS / JO
+			if(in_array($perfilId, array(20, 60)) && in_array($statusId, array(2, 3))) {
+				if($statusId == 2) {
+					// Aprobar
+					$updateData = array(
+						'check_20' => 1,
+						'checked_20' => $authUserId,
+						'check_20_date' => $updatedDatetime,
+						'rejected_10' => 0, 'rejected_20' => 0, 'rejected_30' => 0, 'rejected_40' => 0, 'rejected_50' => 0,'rejected_90' => 0,'rejected_sp' => 0,
+						'sp_status_id' => 0,
+						'closed' => $item['Sic']['total'] < $this->Sic->amountJS ? 1 : 0
+					);
+
+					if($item['Sic']['required_30'] == 0 && $item['Sic']['required_40'] == 0 && $item['Sic']['required_50'] == 0 && $item['Sic']['required_90'] == 0) {
+						$updateData['closed'] = 1;
+					}
+
+				} elseif($statusId == 3) {
+					// Rechazar
+					$updateData = array(
+						'check_10' => 0, 'check_20' => 0, 'check_30' => 0, 'check_40' => 0, 'check_50' => 0, 'check_90' => 0,
+						'checked_10' => 0, 'checked_20' => 0, 'checked_30' => 0, 'checked_40' => 0, 'checked_50' => 0, 'checked_90' => 0,
+						'rejected_10' => 0, 'rejected_20' => 1, 'rejected_30' => 0, 'rejected_40' => 0, 'rejected_50' => 0,'rejected_90' => 0,'rejected_sp' => 0,
+						'check_10_date' => null, 'check_20_date' => null, 'check_30_date' => null, 'check_40_date' => null, 'check_50_date' => null, 'check_90_date' => null,
+						'sp_status_id' => 0,
+						'closed' => 0
+					);					
+				}
+			}
+
+			// CO
+			if($perfilId == 30 && in_array($statusId, array(2, 3))) {
+				if($statusId == 2) {
+					// Aprobar
+					$updateData = array(
+						'check_30' => 1,
+						'checked_30' => $authUserId,
+						'check_30_date' => $updatedDatetime,
+						'rejected_10' => 0, 'rejected_20' => 0, 'rejected_30' => 0, 'rejected_40' => 0, 'rejected_50' => 0,'rejected_90' => 0,'rejected_sp' => 0,
+						'sp_status_id' => 0,
+						'closed' => $item['Sic']['total'] < $this->Sic->amountCO ? 1 : 0
+					);
+
+					if($item['Sic']['required_40'] == 0 && $item['Sic']['required_50'] == 0 && $item['Sic']['required_90'] == 0) {
+						$updateData['closed'] = 1;
+					}
+
+				} elseif($statusId == 3) {
+					// Rechazar
+					$updateData = array(
+						'check_10' => 0, 'check_20' => 0, 'check_30' => 0, 'check_40' => 0, 'check_50' => 0, 'check_90' => 0,
+						'checked_10' => 0, 'checked_20' => 0, 'checked_30' => 0, 'checked_40' => 0, 'checked_50' => 0, 'checked_90' => 0,
+						'rejected_10' => 0, 'rejected_20' => 0, 'rejected_30' => 1, 'rejected_40' => 0, 'rejected_50' => 0,'rejected_90' => 0,'rejected_sp' => 0,
+						'check_10_date' => null, 'check_20_date' => null, 'check_30_date' => null, 'check_40_date' => null, 'check_50_date' => null, 'check_90_date' => null,
+						'sp_status_id' => 0,
+						'closed' => 0
+					);					
+				}
+			}
+
+			// GT
+			if($perfilId == 90 && in_array($statusId, array(2, 3))) {
+				if($statusId == 2) {
+					// Aprobar
+					$updateData = array(
+						'check_90' => 1,
+						'checked_90' => $authUserId,
+						'check_90_date' => $updatedDatetime,
+						'rejected_10' => 0, 'rejected_20' => 0, 'rejected_30' => 0, 'rejected_40' => 0, 'rejected_50' => 0,'rejected_90' => 0,'rejected_sp' => 0,
+						'sp_status_id' => 0,
+						'closed' => $item['Sic']['total'] < $this->Sic->amountGT ? 1 : 0
+					);
+				} elseif($statusId == 3) {
+					// Rechazar
+					$updateData = array(
+						'check_10' => 0, 'check_20' => 0, 'check_30' => 0, 'check_40' => 0, 'check_50' => 0, 'check_90' => 0,
+						'checked_10' => 0, 'checked_20' => 0, 'checked_30' => 0, 'checked_40' => 0, 'checked_50' => 0, 'checked_90' => 0,
+						'rejected_10' => 0, 'rejected_20' => 0, 'rejected_30' => 0, 'rejected_40' => 0, 'rejected_50' => 0,'rejected_90' => 1,'rejected_sp' => 0,
+						'check_10_date' => null, 'check_20_date' => null, 'check_30_date' => null, 'check_40_date' => null, 'check_50_date' => null, 'check_90_date' => null,
+						'sp_status_id' => 0,
+						'closed' => 0
+					);					
+				}
+			}
+
+			// FI
+			if($perfilId == 50 && in_array($statusId, array(2, 3))) {
+				if($statusId == 2) {
+					// Aprobar
+					$updateData = array(
+						'check_10' => $item['Sic']['required_10'] == 1 ? 1 : 0,
+						'check_20' => $item['Sic']['required_20'] == 1 ? 1 : 0,
+						'check_30' => $item['Sic']['required_30'] == 1 ? 1 : 0,
+						'check_40' => $item['Sic']['required_40'] == 1 ? 1 : 0,
+						'check_50' => 1,
+						'check_90' => $item['Sic']['required_90'] == 1 ? 1 : 0,
+						'checked_50' => $authUserId,
+						'check_50_date' => $updatedDatetime,
+						'rejected_10' => 0, 'rejected_20' => 0, 'rejected_30' => 0, 'rejected_40' => 0, 'rejected_50' => 0,'rejected_90' => 0,'rejected_sp' => 0,
+						'sp_status_id' => 0,
+						'closed' => 1
+					);
+				} elseif($statusId == 3) {
+					// Rechazar
+					$updateData = array(
+						'check_10' => 0, 'check_20' => 0, 'check_30' => 0, 'check_40' => 0, 'check_50' => 0, 'check_90' => 0,
+						'checked_10' => 0, 'checked_20' => 0, 'checked_30' => 0, 'checked_40' => 0, 'checked_50' => 0, 'checked_90' => 0,
+						'rejected_10' => 0, 'rejected_20' => 0, 'rejected_30' => 0, 'rejected_40' => 0, 'rejected_50' => 1,'rejected_90' => 0,'rejected_sp' => 0,
+						'check_10_date' => null, 'check_20_date' => null, 'check_30_date' => null, 'check_40_date' => null, 'check_50_date' => null, 'check_90_date' => null,
+						'sp_status_id' => 0,
+						'closed' => 0
+					);					
+				}
+			}
+
+			if($perfilId == 'sp' && in_array($statusId, array(2, 3, 4))) {
+				if($statusId == 2) {
+					// Aprobar
+					$updateData = array(
+						'sp_status_id' => 2,
+						'check_sp_date' => $updatedDatetime,
+						'rejected_10' => 0, 'rejected_20' => 0, 'rejected_30' => 0, 'rejected_40' => 0, 'rejected_50' => 0,'rejected_90' => 0,'rejected_sp' => 0,
+					);
+
+					if($localhost === false) {
+						// Aviso para administracion de solicitud de pago
+						$spItem = $this->Sic->read(null, $sicId);
+						if($spItem['Sic']['sp_status_id'] != 2) {
+							$this->loadModel('OperationUnit');
+							$operationUnitsList = $this->OperationUnit->find('list', array('fields' => array('id', 'title')));
+
+					        $email = new CakeEmail();
+					        $email->config('mailgun');
+					        $email->helpers(array('Html'));
+					        $email->emailFormat('html');
+					        $email->from(array('no-reply@emsetec.com.ar' => 'Emsetec SRL'));
+					        $email->to(array('macarena.barraza@emsetec.com.ar', 'patricio.balbi@emsetec.com.ar', 'cau2.administracion@emsetec.com.ar', 'cau3.administracion@emsetec.com.ar'));
+					        $email->subject($operationUnitsList[$item['Sic']['operation_unit_id']]. ' ' .$item['Sic']['sic_number']. ' Nueva solicitud de pago');
+					        $email->send('<a href="http://sic.emsetec.com.ar/admin/sics/index/sic/' .$sicId. '" target="_blank">' .$item['Sic']['sic_number']. '</a><br>Factura asociada: <a href="http://sic.emsetec.com.ar/files/invoices/' .$item['InvoicesOc']['id']. '/original_' .$item['InvoicesOc']['finvoice_oc_file_name']. '" target="_blank">' .$item['InvoicesOc']['finvoice_oc_file_name']. '</a><br>Proveedor: ' . $item['Supplier']['company']. '<br>Factura: ' .$item['InvoicesOc']['invoice_oc_branch']. '-' .$item['InvoicesOc']['invoice_oc_number']. '<br>Fecha VTO: ' .$time->format('d/m/Y', $item['InvoicesOc']['invoice_oc_date_expiration']). '<br>Importe: ' .$item['InvoicesOc']['invoice_oc_subtotal']. '<br>CUIT: ' . $item['Supplier']['cuit']. '<br>Banco: ' . $item['Supplier']['bank_name']. '<br>CBU: ' . $item['Supplier']['bank_cbu']. '<br>Cuenta: ' . $item['Supplier']['bank_account']);
+					        $email->reset();
+						}
+					}
+					
+				} elseif($statusId == 3) {
+					// Rechazar
+					$updateData = array(
+						'check_10' => 0, 'check_20' => 0, 'check_30' => 0, 'check_40' => 0, 'check_50' => 0, 'check_90' => 0,
+						'checked_10' => 0, 'checked_20' => 0, 'checked_30' => 0, 'checked_40' => 0, 'checked_50' => 0, 'checked_90' => 0,
+						'rejected_10' => 0, 'rejected_20' => 0, 'rejected_30' => 0, 'rejected_40' => 0, 'rejected_50' => 0,'rejected_90' => 0,'rejected_sp' => 1,
+						'check_10_date' => null, 'check_20_date' => null, 'check_30_date' => null, 'check_40_date' => null, 'check_50_date' => null, 'check_90_date' => null,
+						'sp_status_id' => 3,
+						'closed' => 0
+					);					
+				} elseif($statusId == 4) {
+					// Eliminar
+					$updateData = array('robinson' => 1);
+				}
+			}
+
+			// Sic Abonada
+			if($perfilId == 'ab' && in_array($statusId, array(1, 2))) {
+				$updateData = array(
+					'ab_status_id' => $statusId,
+					'check_ab_date' => $updatedDatetime,
+				);					
+			}
+
+			$closedStatusBefore = $this->Sic->data['Sic']['closed'];
+			$this->Sic->save($updateData, false);
+			$this->saveLog($sicId, $authUserId, $role, false);
+
+			if($statusId == 3 && $item['Sic']['rejected_' .$perfilId] != 1) {
+				if(isset($this->request->data['reason-message']) && $this->request->data['reason-message'] != '') {
+					// 101 - perfil SP
+					$updateReasonData = array(
+						'sic_id' => $sicId,
+						'reason_user_role_id' => $perfilId == 'sp' ? 101 : $perfilId,
+						'reason_user_id' => $authUserId,
+						'reason' => $this->request->data['reason-message'],
+						'reason_option_id' => $this->request->data['reason-option-id']
+					);
+					$this->Sic->SicsRejectionsReason->save($updateReasonData, false);
+					unset($this->request->data['reason-message']);
+				}
+			}
+
+			$item = $this->Sic->read(null, $sicId);
+
+			$closedStatusAfter = $item['Sic']['closed'];
+
+			// Sic aprobada
+			if($closedStatusBefore == 0 && $closedStatusAfter == 1 && $localhost === false) {
+
+				$this->loadModel('OperationUnit');
+				$operationUnitsList = $this->OperationUnit->find('list', array('fields' => array('id', 'title')));
+
+				$operationUnitId = $item['Sic']['operation_unit_id'];
+				$admUsers = implode(',', $this->Sic->admUsersArray);
+
+				$this->loadModel('Users');
+				$users = $this->Users->query("SELECT email FROM users WHERE id IN(SELECT user_id FROM users_operation_units WHERE operation_unit_id = $operationUnitId) AND active = 1 AND role = 10 AND id NOT IN($admUsers)");
+
+				if(count($users) > 0) {
+
+					$adIgnoreList = array();
+					$notificatinEmails = array();
+
+					foreach($users as $user) {
+						if(!in_array($user['users']['email'], $adIgnoreList)) {
+							$notificatinEmails[] = $user['users']['email'];
+						}
+					}
+
+			        $email = new CakeEmail();
+			        $email->config('mailgun');
+			        $email->helpers(array('Html'));
+			        $email->emailFormat('html');
+			        $email->from(array('no-reply@emsetec.com.ar' => 'Emsetec SRL'));
+			        $email->to($notificatinEmails);
+			        $email->subject($operationUnitsList[$item['Sic']['operation_unit_id']]. ' Su SIC Nro. ' .$item['Sic']['sic_number']. ' - ' . $item['Supplier']['company']. ' fue aprobada.');
+			        $email->send('Su SIC Nro. <a href="http://sic.emsetec.com.ar/admin/sics/index/sic/'.$sicId.'" target="_blank">' .$item['Sic']['sic_number']. '</a> - ' . $item['Supplier']['company']. ' fue aprobada.');
+			        $email->reset();
+				}
+
+			}
+
+			// Sic rechazada
+			if($statusId == 3 && $localhost === false && $item['Sic']['rejected_' .$perfilId] != 1) {
+
+				$this->loadModel('OperationUnit');
+				$operationUnitsList = $this->OperationUnit->find('list', array('fields' => array('id', 'title')));
+
+				$operationUnitId = $item['Sic']['operation_unit_id'];
+				$admUsers = implode(',', $this->Sic->admUsersArray);
+
+				$this->loadModel('Users');
+				$users = $this->Users->query("SELECT email FROM users WHERE id IN(SELECT user_id FROM users_operation_units WHERE operation_unit_id = $operationUnitId) AND active = 1 AND role IN(10, 20) AND id NOT IN($admUsers)");
+
+				if(count($users) > 0) {
+
+					$adIgnoreList = array();
+					$notificatinEmails = array();
+
+					foreach($users as $user) {
+						if(!in_array($user['users']['email'], $adIgnoreList)) {
+							$notificatinEmails[] = $user['users']['email'];
+						}
+					}
+
+			        $email = new CakeEmail();
+			        $email->config('mailgun');
+			        $email->helpers(array('Html'));
+			        $email->emailFormat('html');
+			        $email->from(array('no-reply@emsetec.com.ar' => 'Emsetec SRL'));
+			        $email->to($notificatinEmails);
+			        $email->subject($operationUnitsList[$item['Sic']['operation_unit_id']]. ' Su SIC Nro. ' .$item['Sic']['sic_number']. ' - ' . $item['Supplier']['company']. ' fue rechazada.');
+			        $email->send('Su SIC Nro. <a href="http://sic.emsetec.com.ar/admin/sics/index/sic/'.$sicId.'" target="_blank">' .$item['Sic']['sic_number']. '</a> - ' . $item['Supplier']['company']. ' fue rechazada.<br><br>Motivo de rechazo:<br>' .$updateReasonData['reason']);
+			        $email->reset();
+				}
+				$statusId = 0;
+
+			}
+		}
+
+		// Facturas
+		// $this->loadModel('InvoicesOc');
+		// $invoicesOc = $this->InvoicesOc->find('all');
+		// $invoicesOcAll = '';
+		// if(count($invoicesOc) > 0) {
+		// 	foreach($invoicesOc as $invOc) {
+		// 		$invoicesOcAll[$invOc['InvoicesOc']['id']] = $invOc;
+		// 	}
+		// }
+        // $this->set('invoicesOcAll', $invoicesOcAll);
+
+		$this->set('_rejections_reasons', $this->_rejections_reasons);
+		$this->set('admUsersArray', $this->Sic->admUsersArray);
+		$this->set('role', $role);
+		$this->set('authUserId', $authUserId);
+		$this->set('item', $item);
+	}
+
+	public function checkUploadFile($data) {
+		pr($data); exit;
+	}
+
+	public function admin_get_csv_rejected() {
+		set_time_limit(0);
+		$sicsLogs = $this->Sic->query("SELECT SicsStatusesLog.sic_id, User.first_name FROM sics_statuses_logs SicsStatusesLog 
+			LEFT JOIN users User ON SicsStatusesLog.user_id = User.id
+			WHERE SicsStatusesLog.role = 10 AND User.active = 1 
+			GROUP BY SicsStatusesLog.sic_id, User.first_name");
+		$sicsStatusesLog = '';
+		if(count($sicsLogs) > 0) {
+			foreach($sicsLogs as $siclog) {
+				$sicsStatusesLog[$siclog['SicsStatusesLog']['sic_id']] = $siclog['User']['first_name'];
+			}
+		}
+
+
+        $sics = $this->Sic->SicsRejectionsReason->query("SELECT * FROM sics_rejections_reasons SicsRejectionsReason 
+        	LEFT JOIN sics Sic ON Sic.id = SicsRejectionsReason.sic_id
+        	LEFT JOIN sics_statuses_logs SicsStatusesLog ON Sic.id = SicsStatusesLog.sic_id
+            LEFT JOIN contracts Contract ON Sic.contract_id = Contract.id
+            LEFT JOIN eventual_contract_budgets EventualBudgetContract ON Sic.eventual_contract_id = EventualBudgetContract.id
+            LEFT JOIN centers Center ON Sic.center_id = Center.id
+            LEFT JOIN suppliers Supplier ON Sic.supplier_id = Supplier.id
+            LEFT JOIN users User ON SicsRejectionsReason.reason_user_id = User.id
+        WHERE Sic.robinson <> 1
+             AND Sic.type_id IN (1,2,4)
+             AND Sic.date_of > DATE(NOW()) - INTERVAL 1 MONTH
+         ORDER BY Sic.date_of DESC");  
+
+        App::uses('TimeHelper', 'View/Helper');
+        App::import('Vendor', 'PHPExcel', array('file' => 'PHPExcel' . DS . 'Classes' . DS . 'PHPExcel.php'));
+		$this->autoRender = false;
+		$time = new TimeHelper(new View( null));
+        
+		if( count($sics) > 0 ) {
+            $spreadsheet = new PHPExcel();
+            $spreadsheet->getProperties()->setCreator('Emsetec Facility Management')
+                    ->setLastModifiedBy($this->Auth->user('first_name'))
+                    ->setTitle('Reporte SICs aprobadas')
+                    ->setSubject('Reporte SICs aprobadas')
+                    ->setDescription('Reporte SICs aprobadas')
+                    ->setKeywords('reporte sics aprobadas')
+                    ->setCategory('Reporte SICs aprobadas');
+
+            // Set Columns Names
+            $spreadsheet->setActiveSheetIndex(0)
+                    ->setCellValue('A1', 'Sic #')
+                    ->setCellValue('B1', 'CAU')
+                    ->setCellValue('C1', 'Fecha')
+                    ->setCellValue('D1', 'Cliente')
+                    ->setCellValue('E1', 'Contrato')
+                    ->setCellValue('F1', 'Proveedor')
+                    ->setCellValue('G1', 'SIC Total')
+                    ->setCellValue('H1', 'IVA')
+                    ->setCellValue('I1', 'Justificación')
+                    ->setCellValue('J1', 'Motivo de Rechazo')
+                    ->setCellValue('K1', 'Rechazado Por')        
+                    ->setCellValue('L1', 'Fecha de Rechazo')        
+                    ->setCellValue('M1', 'Estado')        
+                    ->setCellValue('N1', 'Tipo contrato');            
+            // ABCDEFGHIJKLMNOPQR
+            $rowNumber = 2;
+            foreach($sics as $sic) {
+                if($sic['Sic']['contract_type_id'] == 1) {
+                    $contractNumber = !empty($sic['EventualBudgetContract']['title']) ? $sic['EventualBudgetContract']['title'] : '-';
+                    $contractType = 'Eventual';
+                } elseif($sic['Sic']['contract_type_id'] == 0) {
+                    $contractNumber = !empty($sic['Contract']['title']) ? $sic['Contract']['title'] : '-';
+                    $contractType = 'Mantenimiento';
+                }
+                $path = '->->->';
+                if(isset($sic['Item']['path']) && !empty($sic['Item']['path'])) {
+                    $path = $sic['Item']['path'];
+                }
+                $splitPath = explode( '>', $path);
+                $spreadsheet->setActiveSheetIndex(0)
+                    ->setCellValue('A' . $rowNumber, $sic['Sic']['sic_number'])
+                    ->setCellValue('B' . $rowNumber, isset($sicsStatusesLog[$sic['Sic']['id']]) ? $sicsStatusesLog[$sic['Sic']['id']] : '')
+                    ->setCellValue('C' . $rowNumber, isset($sic['Sic']['date_of']) ? $time->format('d/m/Y',$sic['Sic']['date_of']) : '')
+                    ->setCellValue('D' . $rowNumber, $sic['Center']['title'])
+                    ->setCellValue('E' . $rowNumber, $contractNumber)
+                    ->setCellValue('F' . $rowNumber, str_replace("\r","", $sic['Supplier']['company']))
+                    ->setCellValue('G' . $rowNumber, $sic['Sic']['total'])
+                    ->setCellValue('H' . $rowNumber, $sic['Sic']['iva_total'])
+                    ->setCellValue('I' . $rowNumber, $sic['Sic']['justification'])
+                    ->setCellValue('J' . $rowNumber, $sic['SicsRejectionsReason']['reason'])
+                    ->setCellValue('K' . $rowNumber, $sic['User']['first_name'])
+                    ->setCellValue('L' . $rowNumber, isset($sic['SicsRejectionsReason']['created']) ? $time->format('d/m/Y',$sic['SicsRejectionsReason']['created']) : '')
+                    ->setCellValue('M' . $rowNumber, $sic['Sic']['closed'] == 1 ? 'Aprobada':'En proceso')
+                    ->setCellValue('N' . $rowNumber, $contractType);
+                $spreadsheet->getActiveSheet()->getStyle('N' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');                        
+                $rowNumber++;
+            }
+	        // Rename worksheet
+	        $spreadsheet->getActiveSheet()->setTitle('Reporte SICs Rechazadas');
+	        // Set active sheet index to the first sheet, so Excel opens this as the first sheet
+	        $spreadsheet->setActiveSheetIndex(0);
+	        // Set text style
+	        $spreadsheet->getActiveSheet()->getStyle('A1:R1')->getFont()->setBold( true );
+	        // Redirect output to a client’s web browser (Xls)
+	        header('Content-Type: application/vnd.ms-excel');
+	        header('Content-Disposition: attachment;filename="Reporte-SICs-Rechazadas.xls"');
+	        header('Cache-Control: max-age=0');
+	        // If you're serving to IE 9, then the following may be needed
+	        header('Cache-Control: max-age=1');
+	        // If you're serving to IE over SSL, then the following may be needed
+	        header('Expires: Mon, 26 Jul 1997 05:00:00 GMT'); // Date in the past
+	        header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT'); // always modified
+	        header('Cache-Control: cache, must-revalidate'); // HTTP/1.1
+	        header('Pragma: public'); // HTTP/1.0
+	        $writer = PHPExcel_IOFactory::createWriter($spreadsheet, 'Excel5');
+	        $writer->save('php://output');            
+	        exit;
+        } else {
+        	$this->Session->setFlash( 'No encontró rechazadas', 'default', array('class' => 'alert alert-error'));
+        	$this->redirect( array('action' => 'index' ));
+        }
+	}
+	public function admin_getContractsByOU() {
+		$authUserId 		= $this->Auth->user('id');
+		$opunitId 			= $this->request->data['opunitId'];
+        $centersList 		= $this->Sic->Center->find('list');
+		$userCenters 		= $this->Sic->Center->getCentersByOperationUnit($opunitId);
+		$contracts 			= $this->Sic->Contract->getSuperList($userCenters);
+
+        $evtOptions = array(
+            'fields' => array('EventualContractBudget.id', 'EventualContractBudget.contract_number', 'EventualContractBudget.title', 'EventualContractBudget.center_id'), 
+            'conditions' => array(
+                'EventualContractBudget.full_contract !=' => 0,
+                'EventualContractBudget.state_id' => 3,
+                'EventualContractBudget.robinson <>' => 1,
+                'EventualContractBudget.full_contract !=' => "",
+                'EventualContractBudget.center_id' => $userCenters,
+                'EventualContractBudget.created >=' => (date('Y') - 1) . '-01-01'
+            ),
+        	'order' => array('EventualContractBudget.title')
+        );
+        $evtContracts = $this->Sic->EventualContract->EventualContractBudget->find('all', $evtOptions);
+        $evtContractList = array();
+        $arrIndex = 1;
+        foreach($evtContracts as $evtContract) {
+        	// $contractName = '';
+        	// if($evtContract['EventualContractBudget']['title'] == $evtContract['EventualContractBudget']['contract_number']) {
+        	// 	$contractName = $evtContract['EventualContractBudget']['title'];
+        	// } else {
+        	// 	$contractName = $evtContract['EventualContractBudget']['title'] .' - '. $evtContract['EventualContractBudget']['contract_number'];
+        	// }
+        	$contractName = $evtContract['EventualContractBudget']['title'];
+            $evtContractList[$arrIndex] = array(
+            	'contract_id' => $evtContract['EventualContractBudget']['id'],
+            	'contract_name' => $contractName. ' - ' .strtoupper($centersList[$evtContract['EventualContractBudget']['center_id']]));
+            $arrIndex++;
+        }
+        die(json_encode(array('evtContracts' => $evtContractList, 'mntContracts' => $contracts)));
+	}
+
+	public function admin_dashboard( $type = '', $sicId = null) {
+		$role = $this->Auth->user('role');
+        $authUserId = $this->Auth->user('id');
+        $authCenterId = $this->Auth->user('center_id');
+        $this->set('role', $role);
+		$this->set('title_for_layout', 'Dashboard');
+		$this->set('loadJQueryUI', true);
+		$this->set('loadChosenJS', true);
+		$this->set('loadAmCharts', true);
+        $this->set('contentForLayoutClass', 'container-fluid');
+
+        // Info completa de UO
+        $this->loadModel('UsersCenter');
+        $this->loadModel('OperationUnit');
+        $this->loadModel('UsersOperationUnit');
+        $operarionUnitsInfo = $this->UsersOperationUnit->getOperationUnitsInfo(
+        	$this->UsersCenter, $this->OperationUnit, $this->Sic->Center, $authUserId);
+
+        $userCenters = $operarionUnitsInfo['userCenters'];
+        $userAdm = $this->UsersOperationUnit->find('first', array('conditions' => array('role' => 10, 'operation_unit_id' => 1, 'user_id' => $authUserId)));
+
+        $this->set('userCenters', $userCenters);
+        $this->set('centersGT', $operarionUnitsInfo['centersGT']);
+        $this->set('centersTO', $operarionUnitsInfo['centersTO']);
+        $this->set('usersOperationUnit', $operarionUnitsInfo['usersOperationUnit']);
+        $this->set('operationCentersUnits', $operarionUnitsInfo['operationCentersUnits']);
+        $this->set('operationUnits', $operarionUnitsInfo['operationUnits']);
+        // Fin de Info de UO
+
+		// elimino filtros
+		if(isset($this->request->params['named']['search']) && $this->request->params['named']['search'] == 'clear-search'){
+			$this->Session->delete('App.Sic');
+		}
+        
+        if (isset($this->request->data['Search']['center_id']) && $this->request->data['Search']['center_id'] != "") {
+            $this->Session->write('App.Sic.center_id', $this->request->data['Search']['center_id']);
+        }		
+
+		// centro operativo
+		if(isset($this->request->data['Search']['operation_unit_id']) ){
+			$this->Session->write('App.Sic.operation_unit_id', $this->request->data['Search']['operation_unit_id'] );
+		}
+
+		// proveedor
+		if(isset($this->request->data['Search']['supplier_id']) ){
+			$this->Session->write('App.Sic.supplier_id', $this->request->data['Search']['supplier_id'] );
+		}		
+
+		// fecha inicio
+		if(isset($this->request->data['Search']['date_start']) ){
+			$this->Session->write('App.Sic.date_start', $this->request->data['Search']['date_start'] );
+		}
+
+		// fecha fin
+		if(isset($this->request->data['Search']['date_end']) ){
+			$this->Session->write('App.Sic.date_end', $this->request->data['Search']['date_end'] );
+		}
+
+
+		$dateRange = '';
+		$date_start = $this->Session->read('App.Sic.date_start');
+		$date_end = $this->Session->read('App.Sic.date_end');
+		if(!empty($date_start) && !empty($date_end)) {
+			$ds = split('-', $date_start);
+			$de = split('-', $date_end);
+			$dateRange = " Sic.date_of >= '" .$ds[2].'-'.$ds[1].'-'.$ds[0] . "' AND Sic.date_of <= '" .$de[2].'-'.$de[1].'-'.$de[0] . "' ";
+		} elseif(!empty($date_start) && empty($date_end)){
+			$d = split('-', $date_start);
+			$dateRange = " Sic.date_of >= '" .$d[2].'-'.$d[1].'-'.$d[0] . "' ";
+		} elseif(empty($date_start) && !empty($date_end)){
+			$d = split('-', $date_end);
+			$dateRange = " Sic.date_of <= '" .$d[2].'-'.$d[1].'-'.$d[0] . "' ";
+		} else {
+			$dateRange = " Sic.date_of >= DATE(NOW()) - INTERVAL 6 MONTH ";
+		}
+
+		$searchOperationUnits = $this->Session->read('App.Sic.operation_unit_id');
+		if(!empty($searchOperationUnits)) {
+			$searchOperationUnits = " AND Sic.operation_unit_id IN (" . implode(',', $searchOperationUnits) . ") ";
+		}
+
+		$searchCenters = $this->Session->read('App.Sic.center_id');
+		if(!empty($searchCenters)) {
+			$searchCenters = " AND Sic.center_id IN (" . implode(',', $searchCenters) . ") ";
+		}
+
+		$items = $this->Sic->query("SELECT
+			Sic.id,
+			Sic.type_id, 
+			Sic.date_of,
+			Sic.closed,
+			Sic.sp_status_id,
+			InvoicesOc.invoice_oc_ab_status_id
+			FROM sics Sic 
+				LEFT JOIN invoices_ocs InvoicesOc ON (Sic.associated_invoice_oc_id=InvoicesOc.id)
+			WHERE $dateRange 
+				AND Sic.robinson <> 1
+				AND Sic.type_id IN(1,2,4)
+				AND Sic.supplier_id NOT IN(9528)
+				$searchOperationUnits
+				$searchCenters");
+
+		$countSics = 0; 
+		$countSicsApr = 0; 
+		$countSicsPend = 0; 
+		$countSicsReject = 0; 
+		$countSicsSp = 0; 
+		$countSicsPaid = 0; 
+		$countFF = 0; 
+		$countFFApr = 0; 
+		$countFFPend = 0; 
+		if(count($items) > 0) {
+			foreach($items as $item) {
+				if($item['Sic']['closed'] != 1) {
+					$countSicsPend++;
+					$countSics++;
+				}
+				if($item['Sic']['closed'] == 1 && $item['InvoicesOc']['invoice_oc_ab_status_id'] != 2 && $item['Sic']['sp_status_id'] == 2) {
+					$countSicsSp++;
+					$countSics++;
+				}
+				if($item['Sic']['closed'] == 1 && $item['InvoicesOc']['invoice_oc_ab_status_id'] == 2) {
+					$countSicsPaid++;
+					$countSics++;
+				}
+			}
+		}
+
+        $options = array(
+        	'fields' => array('Center.id', 'Center.title'), 
+        	'order' => 'Center.title', 
+        	'conditions' => array(
+        		'Center.robinson' => 0
+        	));
+        if(count($userCenters) > 0) {
+            $options['conditions']['Center.id'] = $userCenters;
+        }
+        $this->set('centers', $this->Sic->Center->find('list', $options));
+        $this->set( 'suppliers', $this->Sic->Supplier->getList(true));
+
+		$this->backUrl = true;
+
+		$this->set('countSics', $countSics);
+		$this->set('countSicsApr', $countSicsApr);
+		$this->set('countSicsPend', $countSicsPend);
+		$this->set('countSicsReject', $countSicsReject);
+		$this->set('countSicsSp', $countSicsSp);
+		$this->set('countSicsPaid', $countSicsPaid);
+		$this->set('countFF', $countFF);
+		$this->set('countFFPend', $countFFPend);
+		$this->set('countFFApr', $countFFApr);
+		$this->set('items', $items);
+        $this->set('authUserId', $authUserId);
+		$this->set('model', $this->modelClass);
+		$this->set('model_url', $this->modelKey);
+		$this->set('controller', $this->request->params['controller']);
+	}
+
+	public function admin_get_csv_dev() {
+		$this->autoRender = false;
+		set_time_limit(0);
+	
+		header("Content-type: application/vnd.ms-excel");
+		header("Content-disposition: attachment; filename=sics_export.csv");
+		header("Pragma: no-cache");
+		header("Expires: 0");
+	
+		App::uses('TimeHelper', 'View/Helper');
+		$time = new TimeHelper(new View(null));
+	
+		$role = $this->Auth->user('role');
+		$authUserId = $this->Auth->user('id');
+		$joId = $this->Session->read('App.Sic.jefeobra_id');
+		$jsId = $this->Session->read('App.Sic.user_id');
+	
+		// Info completa de UO
+		$this->loadModel('UsersCenter');
+		$this->loadModel('OperationUnit');
+		$this->loadModel('UsersOperationUnit');
+		$operarionUnitsInfo = $this->UsersOperationUnit->getOperationUnitsInfo(
+			$this->UsersCenter,
+			$this->OperationUnit,
+			$this->Sic->Center,
+			$authUserId
+		);
+	
+		$userCenters = $operarionUnitsInfo['userCenters'];
+	
+		$this->set('userCenters', $userCenters);
+		$this->set('centersGT', $operarionUnitsInfo['centersGT']);
+		$this->set('centersTO', $operarionUnitsInfo['centersTO']);
+		$this->set('usersOperationUnit', $operarionUnitsInfo['usersOperationUnit']);
+		$this->set('operationCentersUnits', $operarionUnitsInfo['operationCentersUnits']);
+		$this->set('operationUnits', $operarionUnitsInfo['operationUnits']);
+		// Fin de Info de UO
+	
+		if ($role == 10 && (empty($joId) || empty($jsId))) {
+			if (empty($this->Session->read('App.Sic.center_id'))) {
+				if (count($userCenters) > 0) {
+					$this->paginate['conditions']['Sic.center_id'] = $userCenters;
+				} else {
+					$this->paginate['conditions']['Sic.center_id'] = $this->Auth->user('center_id');
+				}
+			}
+		}
+	
+		$this->applyFilters();
+		$centerId = $this->Session->read('App.Sic.center_id');
+		$locationTitle = $this->Session->read('App.Sic.location');
+		$eventualContractId = $this->Session->read('App.Sic.eventual_contract_id');
+	
+		if ($role == 60 || !empty($eventualContractId) || !empty($joId)) {
+			$this->paginate['joins'] = array(
+				array(
+					'table' => 'eventual_contract_budgets',
+					'alias' => 'EventualContractBudget',
+					'type' => 'INNER',
+					'conditions' => array(array('Sic.eventual_contract_id = EventualContractBudget.id'))
+				)
+			);
+			$this->paginate['conditions']['Sic.contract_type_id'] = 1;
+	
+			if ($role == 60) {
+				$this->paginate['conditions']['EventualContractBudget.jefeobra_id'] = $authUserId;
+				if (count($userCenters) > 0) {
+					$this->paginate['conditions']['EventualContractBudget.center_id'] = $userCenters;
+				}
+			}
+			if (!empty($joId)) {
+				$this->paginate['conditions']['EventualContractBudget.jefeobra_id'] = $joId;
+			}
+			if (!empty($eventualContractId)) {
+				$this->paginate['conditions']['EventualContractBudget.id'] = $eventualContractId;
+			}
+		} elseif ($role == 20) {
+			if (empty($centerId)) {
+				if (count($userCenters) > 0) {
+					$this->paginate['conditions']['Sic.center_id'] = $userCenters;
+				} else {
+					$this->paginate['conditions']['Sic.center_id'] = $this->Auth->user('center_id');
+				}
+			}
+			$this->paginate['conditions']['Sic.contract_type_id'] = 0;
+		}
+	
+		if (!empty($locationTitle)) {
+			$this->paginate['joins'] = array(
+				array(
+					'table' => 'eventual_contract_budgets',
+					'alias' => 'EventualContractBudget',
+					'type' => 'left',
+					'conditions' => array('Sic.eventual_contract_id = EventualContractBudget.id')
+				)
+			);
+			$this->paginate['conditions']['EventualContractBudget.location'] = $locationTitle;
+			$this->request->data['Search']['location'] = $locationTitle;
+		}
+	
+		if (!empty($jsId)) {
+			$this->paginate['conditions']['Contract.user_id'] = $jsId;
+			$this->paginate['conditions']['Sic.contract_type_id'] = 0;
+		}
+	
+		$this->paginate['conditions']['Sic.robinson <>'] = 1;
+		$this->paginate['order'] = 'Sic.date_of DESC';
+		$this->paginate['limit'] = 500;
+		$this->paginate['fields'] = array(
+			'Sic.id',
+			'Sic.sic_number',
+			'Sic.date_of',
+			'Sic.type_id',
+			'Sic.closed',
+			'Sic.payment_form',
+			'Sic.justification',
+			'Center.id',
+			'Center.title',
+			'LogUser.id',
+			'LogUser.first_name',
+			'Supplier.id',
+			'Supplier.company',
+			'Contract.id',
+			'Contract.type_id',
+			'Contract.contract_number',
+			'InvoicesOc.id',
+			'InvoicesOc.finvoice_oc_file_name',
+			'InvoicesOc.invoice_oc_branch',
+			'InvoicesOc.invoice_oc_number',
+			'InvoicesOc.invoice_oc_date_expiration'
+		);
+		$this->paginate['contain'] = array(
+			'Center' => array('fields' => array('Center.id', 'Center.title')),
+			'LogUser' => array('fields' => array('LogUser.id', 'LogUser.first_name')),
+			'Supplier' => array('fields' => array('Supplier.id', 'Supplier.company')),
+			'Contract' => array('fields' => array('Contract.id', 'Contract.type_id', 'Contract.contract_number')),
+			'InvoicesOc' => array('fields' => array(
+				'InvoicesOc.id',
+				'InvoicesOc.finvoice_oc_file_name',
+				'InvoicesOc.invoice_oc_branch',
+				'InvoicesOc.invoice_oc_number',
+				'InvoicesOc.invoice_oc_date_expiration'
+			))
+		);
+		$this->Sic->Behaviors->attach('Containable');
+		$this->Sic->SicsItem->Behaviors->attach('Containable');
+	
+		// Agregar el filtro de fecha para los sic (se conserva comportamiento original)
+		if (isset($this->request->data['Search']['sic_date_from']) && isset($this->request->data['Search']['sic_date_to'])) {
+			$this->Session->write('App.Sic.sic_date_from', $this->request->data['Search']['sic_date_from']);
+			$this->Session->write('App.Sic.sic_date_to', $this->request->data['Search']['sic_date_to']);
+		}
+	
+		echo utf8_decode("SIC #;Fecha;Fecha De Vencimiento;Centro;Contrato;Tipo;Proveedor;Cantidad;Rubro;Subrubro;Item;Detalle;Importe;Condicion De Pago;Estado;Tipo De Contrato;Justificación;Factura Asociada;Nro.Factura;Generado Por;") . "\n";
+	
+		$baseQuery = $this->paginate;
+		$page = 1;
+	
+		while (true) {
+			$query = $baseQuery;
+			$query['page'] = $page;
+	
+			$sics = $this->Sic->find('all', $query);
+			if (empty($sics)) {
+				break;
+			}
+	
+			$sicIds = array();
+			foreach ($sics as $sic) {
+				$sicIds[] = $sic['Sic']['id'];
+			}
+	
+			$sicsItemsRows = array();
+			if (!empty($sicIds)) {
+				$sicsItemsRows = $this->Sic->SicsItem->find('all', array(
+					'fields' => array(
+						'SicsItem.id',
+						'SicsItem.sic_id',
+						'SicsItem.amount',
+						'SicsItem.total_price',
+						'SicsItem.detail',
+						'Item.id',
+						'Item.path',
+						'Item.title'
+					),
+					'conditions' => array(
+						'SicsItem.sic_id' => $sicIds,
+						'SicsItem.robinson <>' => 1
+					),
+					'contain' => array(
+						'Item' => array('fields' => array('Item.id', 'Item.path', 'Item.title'))
+					),
+					'order' => array('SicsItem.id' => 'ASC')
+				));
+			}
+	
+			$itemsBySic = array();
+			foreach ($sicsItemsRows as $row) {
+				$sid = $row['SicsItem']['sic_id'];
+				if (!isset($itemsBySic[$sid])) {
+					$itemsBySic[$sid] = array();
+				}
+				$itemsBySic[$sid][] = $row;
+			}
+	
+			foreach ($sics as $sic) {
+				$sid = $sic['Sic']['id'];
+				if (empty($itemsBySic[$sid])) {
+					continue;
+				}
+	
+				$status = ($sic['Sic']['closed'] == 1) ? 'Aprobada' : 'En proceso';
+				$logUser = isset($sic['LogUser']['first_name']) ? $sic['LogUser']['first_name'] : '-';
+				$contractType = (isset($this->_contract_types[$sic['Contract']['type_id']])) ? $this->_contract_types[$sic['Contract']['type_id']] : '-';
+				$contractNumber = (!empty($sic['Contract']['contract_number'])) ? $sic['Contract']['contract_number'] : '-';
+				$associatedInvoice = isset($sic['InvoicesOc']['finvoice_oc_file_name']) ? $sic['InvoicesOc']['finvoice_oc_file_name'] : '-';
+				$nroAssociatedInvoice = (isset($sic['InvoicesOc']['invoice_oc_branch']) && isset($sic['InvoicesOc']['invoice_oc_number']))
+					? $sic['InvoicesOc']['invoice_oc_branch'] . '-' . $sic['InvoicesOc']['invoice_oc_number']
+					: '-';
+				$orderType = (isset($this->_order_types[$sic['Sic']['type_id']])) ? $this->_order_types[$sic['Sic']['type_id']] : '-';
+	
+				$dateOf = (!empty($sic['Sic']['date_of'])) ? $time->format('d/m/Y', $sic['Sic']['date_of']) : '-';
+				$expirationDate = (!empty($sic['InvoicesOc']['invoice_oc_date_expiration']))
+					? $time->format('d/m/Y', $sic['InvoicesOc']['invoice_oc_date_expiration'])
+					: '-';
+	
+				$centerTitle = isset($sic['Center']['title']) ? $sic['Center']['title'] : '-';
+				$supplier = isset($sic['Supplier']['company']) ? str_replace("\r", "", $sic['Supplier']['company']) : '-';
+				$paymentForm = isset($sic['Sic']['payment_form']) ? $sic['Sic']['payment_form'] : '-';
+				$justification = isset($sic['Sic']['justification']) ? str_replace("\r\n", ' ', $sic['Sic']['justification']) : '-';
+	
+				foreach ($itemsBySic[$sid] as $itemRow) {
+					$item = $itemRow['SicsItem'];
+					$itemInfo = isset($itemRow['Item']) ? $itemRow['Item'] : array();
+	
+					$path = '->->->';
+					if (isset($itemInfo['path']) && !empty($itemInfo['path'])) {
+						$path = $itemInfo['path'];
+					}
+	
+					$splitPath = explode('>', $path);
+					$rubro = isset($splitPath[0]) ? $splitPath[0] : '-';
+					$subrubro = isset($splitPath[1]) ? $splitPath[1] : '-';
+					$subsubrubro = isset($itemInfo['title']) ? $itemInfo['title'] : '-';
+					$detail = isset($item['detail']) ? str_replace(';', ' ', $item['detail']) : '-';
+	
+					$line =
+						$sic['Sic']['sic_number'] . ";" .
+						$dateOf . ";" .
+						$expirationDate . ";" .
+						$centerTitle . ";" .
+						$contractNumber . ";" .
+						$orderType . ";" .
+						$supplier . ";" .
+						$item['amount'] . ";" .
+						$rubro . ";" .
+						$subrubro . ";" .
+						$subsubrubro . ";" .
+						$detail . ";" .
+						$item['total_price'] . ";" .
+						$paymentForm . ";" .
+						$status . ";" .
+						$contractType . ";" .
+						$justification . ";" .
+						$associatedInvoice . ";" .
+						$nroAssociatedInvoice . ";" .
+						$logUser . ";";
+	
+					echo utf8_decode($line), "\n";
+				}
+			}
+	
+			@ob_flush();
+			flush();
+	
+			unset($sics, $sicIds, $sicsItemsRows, $itemsBySic);
+			$page++;
+		}
+	
+		die();
+	}
+}

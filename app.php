@@ -25,7 +25,7 @@ $taskType = strtoupper($argv[2]);
 // Валидация типа задачи
 $allowedTypes = ['FEATURE', 'REFACTOR', 'DEBUG'];
 if (!in_array($taskType, $allowedTypes)) {
-    echo "Ошибка: Неверный тип задачи. Допустимы: " . implode(', ', $allowedTypes) . "\n";
+    echo "❌ Ошибка: Неверный тип задачи. Допустимы: " . implode(', ', $allowedTypes) . "\n";
     exit(1);
 }
 
@@ -62,21 +62,43 @@ try {
     $validator->validate($analysisResult);
     echo "Успешно!\n\n";
 
-    // 4. Генерация финального промпта для LLM (Модуль Generator)
-    echo "🧠 Формирование оптимизированного промпта для LLM...\n";
+    // 4. Генерация финального промпта для LLM
+    echo "🧠 Формирование оптимизированного промпта для LLM... ";
     $generator = new PromptGenerator();
     $compiledPrompt = $generator->generate($analysisResult, $taskType);
+    echo "Готово!\n\n";
     
-    echo "==================== СКОМПИЛИРОВАННЫЙ ПРОМПТ ====================\n";
-    echo $compiledPrompt . "\n";
-    echo "=================================================================\n\n";
-
-    // Сохраняем промпт в файл рядом с анализируемым файлом для удобства
-    $promptFile = $filePath . '.' . strtolower($taskType) . '.prompt.txt';
-    file_put_contents($promptFile, $compiledPrompt);
-    echo "💾 Промпт также сохранен в файл: $promptFile\n\n";
+    // =========================================================================
+    // НАСТРОЙКА ВЫДЕЛЕННОГО ХРАНИЛИЩА ПРОМПТОВ
+    // =========================================================================
+    $baseOutputDir = __DIR__ . '/.prompt_output';
+    
+    // Очищаем путь к анализируемому файлу от лишних слэшей в начале для склейки
+    $relativeLogPath = ltrim($filePath, '/'); 
+    
+    // Формируем целевую папку: .prompt_output/sic/app/Controller/SicsController.php/
+    $targetFolder = $baseOutputDir . '/' . $relativeLogPath;
+    
+    // Автоматически создаем рекурсивную структуру папок, если её еще нет
+    if (!is_dir($targetFolder)) {
+        mkdir($targetFolder, 0775, true);
+    }
+    
+    // Имя файла: refactor.prompt.txt
+    $promptFileName = strtolower($taskType) . '.prompt.txt';
+    $finalPromptPath = $targetFolder . '/' . $promptFileName;
+    
+    // Запись промпта на диск
+    if (file_put_contents($finalPromptPath, $compiledPrompt) !== false) {
+        echo "💾 [УСПЕХ] Промпт успешно сгенерирован и изолирован!\n";
+        echo "👉 Абсолютный путь: {$finalPromptPath}\n";
+        echo "📂 Папка в контейнере: /.prompt_output/{$relativeLogPath}/\n\n";
+    } else {
+        echo "❌ [ОШИБКА] Не удалось записать скомпилированный промпт на диск.\n\n";
+    }
     
     echo "✅ Работа системы успешно завершена!\n";
+    exit(0);
 
 } catch (Exception $e) {
     echo "❌ Произошла ошибка во время работы системы:\n";

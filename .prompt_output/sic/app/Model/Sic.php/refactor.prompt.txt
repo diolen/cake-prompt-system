@@ -1,0 +1,462 @@
+# СИСТЕМНЫЕ ОГРАНИЧЕНИЯ ОКРУЖЕНИЯ (КРИТИЧЕСКИ ВАЖНО)
+Вы — эксперт по legacy-разработке на PHP и фреймворку CakePHP v2.x.
+Весь предоставляемый вами код ДОЛЖЕН строго соответствовать стандартам **PHP 5.6**.
+
+## Жесткие синтаксические запреты PHP 5.6:
+1. ЗАПРЕЩЕНО использовать короткий синтаксис массивов `[]`. Используйте только `array()`.
+2. ЗАПРЕЩЕН Null Coalescing оператор `??`. Используйте `isset($var) ? $var : $default`.
+3. ЗАПРЕЩЕНЫ стрелочные функции `fn() =>`. Используйте `function() use () {}`.
+4. ЗАПРЕЩЕНЫ typed properties (модификаторы типов свойств класса, например: private $name;). Пишите просто private $name;.
+5. ЗАПРЕЩЕНЫ return types и argument types для скалярных типов (string, int, bool) в сигнатурах методов.
+
+---
+
+# КОНТЕКСТ АНАЛИЗИРУЕМОГО КОМПОНЕНТА
+Ниже приведены данные статического анализа файла, который необходимо обработать:
+{
+    "system_meta": {
+        "framework": "CakePHP",
+        "framework_version": "v2",
+        "php_version": "5.6"
+    },
+    "task_context": {
+        "target_layer": "Model",
+        "file_path": "/sic/app/Model/Sic.php",
+        "class_name": "Sic"
+    },
+    "metrics": {
+        "connectivity": 13,
+        "influence_score": 14
+    },
+    "relations": {
+        "models": [],
+        "components": [],
+        "associations": [
+            {
+                "type": "belongsTo",
+                "model": "Contract"
+            },
+            {
+                "type": "belongsTo",
+                "model": "Supplier"
+            },
+            {
+                "type": "belongsTo",
+                "model": "Center"
+            },
+            {
+                "type": "belongsTo",
+                "model": "EventualContract"
+            },
+            {
+                "type": "belongsTo",
+                "model": "StoreManager"
+            },
+            {
+                "type": "belongsTo",
+                "model": "InvoicesOc"
+            },
+            {
+                "type": "belongsTo",
+                "model": "PersonInCharge"
+            },
+            {
+                "type": "belongsTo",
+                "model": "LogUser"
+            },
+            {
+                "type": "hasMany",
+                "model": "SicsItem"
+            },
+            {
+                "type": "hasMany",
+                "model": "SicsMovement"
+            },
+            {
+                "type": "hasMany",
+                "model": "SicsStatusesLog"
+            },
+            {
+                "type": "hasMany",
+                "model": "SicsSurrender"
+            },
+            {
+                "type": "hasMany",
+                "model": "SicsRejectionsReason"
+            }
+        ]
+    },
+    "impacted_by": [
+        "ReportsController",
+        "InvoicesOcController",
+        "ReportsmeController",
+        "RatingSuppliersController",
+        "SicsStatusesLog",
+        "RatingSupplier",
+        "EventualContract",
+        "SicsMovement",
+        "Contract",
+        "AppffSurrender",
+        "AlertShell",
+        "VehicleShell",
+        "RatingSuppliesUpdateShell",
+        "CopernicoShell"
+    ]
+}
+
+---
+
+# ИНСТРУКЦИЯ К ВЫПОЛНЕНИЮ ЗАДАЧИ
+Выполните рефакторинг целевого файла.
+⚠️ ВНИМАНИЕ: Этот компонент имеет высокий Influence Score (14). От него зависят: ReportsController, InvoicesOcController, ReportsmeController, RatingSuppliersController, SicsStatusesLog, RatingSupplier, EventualContract, SicsMovement, Contract, AppffSurrender, AlertShell, VehicleShell, RatingSuppliesUpdateShell, CopernicoShell. Изменения не должны сломать их публичный интерфейс! Действуйте максимально консервативно.
+
+Цели рефакторинга:
+1. Оптимизация legacy-кода без нарушения обратной совместимости.
+2. Исправление потенциальных уязвимостей или неоптимальных запросов, если они обнаружены.
+3. Соблюдение конвенций CakePHP v2 (использование моделей через $this->{ModelName}, правильная работа с компонентами).
+
+---
+
+# ИСХОДНЫЙ КОД ЦЕЛЕВОГО ФАЙЛА
+Ниже представлен оригинальный код компонента, который требует обработки. 
+Изучите его структуру, методы и зависимости перед началом работы:
+
+```php
+<?php
+class Sic extends AppModel {
+	
+	public $name = 'Sic';
+    public $amountAD = 100000;
+    public $amountJS = 250000;
+    public $amountCO = 999999999999999;
+    public $amountGT = 1000000;
+    public $admUsersArray = array(118, 142, 198, 277, 427);
+    
+    // 184 iara.bottarini@emsetec.com.ar
+    // 142  gissel.martinez@emsetec.com.ar
+    // 171  gissel.martinez@emsetec.com.ar
+    public $rrhhUsersArray = array(142, 171, 184);
+
+	public $validate = array(
+		'center_id' => array( 'required' => array('rule' => 'notEmpty')),
+		'contract_type_id' => array( 'required' => array('rule' => 'notEmpty')),
+		'contract_id' => array( 'required' => array('rule' => 'notEmpty')),
+		'eventual_contract_id' => array( 'required' => array('rule' => 'notEmpty')),
+		'justification' => array( 'required' => array('rule' => 'notEmpty')),
+		'supplier_id' => array(
+            array('rule' => 'notEmpty', 'message' => 'Seleccione un Proveedor'),
+            array('rule' => 'checkSupplierData', 'on' => 'create', 'message' => 'Configurar datos bancarios, mail, IVA, categoría de IIBB del proveedor')
+        ),
+        'date_of' => array(
+            'rule' => array('maxDaysLimit', 10),
+            'message' => 'Máximo 10 días para atras.'
+        )        
+	);
+
+	public $virtualFields = array(
+		'time_of'=> 'UNIX_TIMESTAMP(Sic.date_of)'
+	);
+	
+	public $belongsTo = array( 'Contract', 'Supplier', 'Center','EventualContract',
+		'StoreManager' => array(
+			'className' => 'User',
+			'foreignKey' => 'store_manager_id'
+		),
+        'InvoicesOc' => array(
+            'className' => 'InvoicesOc',
+            'foreignKey' => 'associated_invoice_oc_id'
+        ),
+		'PersonInCharge' => array(
+			'className' => 'User',
+			'foreignKey' => 'person_in_charge'
+		),
+        'LogUser' => array(
+            'className' => 'User',
+            'foreignKey' => 'log_user_id'
+        )
+	);
+
+	public $hasMany = array(
+		'SicsItem',
+		'SicsMovement', // movimientos (rendiciones)
+		'SicsStatusesLog', // historico de estados
+		'SicsSurrender', // dendiciones
+        'SicsRejectionsReason'
+	);
+
+	public $actsAs = array(
+		'Upload.Upload' => array(
+			'fcost_1' => array(
+				'path' => ':webroot/files/:model/:id/:style_:basename.:extension'
+			),
+			'fcost_2' => array(
+				'path' => ':webroot/files/:model/:id/:style_:basename.:extension'
+			),
+			'fcost_3' => array(
+				'path' => ':webroot/files/:model/:id/:style_:basename.:extension'
+			),
+            'fpayment_proof_1' => array(
+                'path' => ':webroot/files/:model/:id/:style_:basename.:extension'
+            ),
+            'fpayment_proof_2' => array(
+                'path' => ':webroot/files/:model/:id/:style_:basename.:extension'
+            ),
+            'fpayment_proof_3' => array(
+                'path' => ':webroot/files/:model/:id/:style_:basename.:extension'
+            ),
+            'fpayment_proof_4' => array(
+                'path' => ':webroot/files/:model/:id/:style_:basename.:extension'
+            ),
+            'fpayment_proof_5' => array(
+                'path' => ':webroot/files/:model/:id/:style_:basename.:extension'
+            ),
+            'finvoice' => array(
+                'path' => ':webroot/files/invoices/:id/:style_:basename.:extension'
+            )
+		)
+	);
+
+    public function getStartPeriod() {
+        return date('Y-m-d', strtotime("-3 Months"));
+    }
+
+    public function maxDaysLimit($check, $limit) {
+
+        if(!empty($check['date_of'])) {
+            $now = time();
+            $your_date = strtotime($check['date_of']);
+            $datediff = $now - $your_date;
+            $days = round($datediff / (60 * 60 * 24));
+
+            if($days > $limit) {
+                return false;
+            }
+        } else {
+            return false;
+        }
+        
+        return true;
+    }
+
+    public function authorizationLevelsUpdate($id, $role, $action, $centersGT, $centersTO, $centersAdmin) {
+        $this->recursive = -1;
+        $sic = $this->read(null, $id);
+        $loggedUserId = AuthComponent::user('id');
+        $dataToUpdate = '';
+        if($action == 'switch') {
+            unset($this->validate['supplier_id']);
+            unset($this->validate['contract_type_id']);
+            $this->set('id', $id);
+            if($role == 10 && $sic['Sic']['status_id'] != 10) {
+                // AD
+                if($sic['Sic']['required_10'] == 1 && $sic['Sic']['check_10'] == 0 ) {
+                    $this->set('check_10', 1);
+                    $this->set('checked_10', $loggedUserId);
+                    if($sic['Sic']['total'] < $this->amountAD) {
+                        $this->set('closed', 1);
+                    }
+                } elseif($sic['Sic']['check_10'] == 1 && $sic['Sic']['check_20'] == 0) {
+                    $this->set('check_10', 0);
+                    $this->set('checked_10', 0);
+                    if($sic['Sic']['total'] < $this->amountAD) {
+                        $this->set('closed', 0);
+                    }
+                }
+            } elseif(in_array($role, array(20, 60)) && $sic['Sic']['status_id'] != 10) {
+                // JS/JO
+                if((($sic['Sic']['required_10'] == 1 && $sic['Sic']['check_10'] == 1) || $sic['Sic']['required_10'] == 0) && 
+                    $sic['Sic']['required_20'] == 1 && $sic['Sic']['check_20'] == 0) {
+                    $this->set('check_20', 1);
+                    $this->set('checked_20', $loggedUserId);
+                    if($sic['Sic']['total'] < $this->amountJS) {
+                        $this->set('closed', 1);
+                    }
+
+                    if(in_array($sic['Sic']['type_id'], array(3, 20))) {
+                        $this->validate = array();
+                        $this->set('required_30', 0);
+                        $this->set('required_40', 0);
+                        $this->set('required_50', 0);
+                        $this->set('required_90', 0);
+                        $this->set('required_100', 0);
+                        $this->set('closed', 1);
+                    }
+
+                } elseif($sic['Sic']['check_20'] == 1 && $sic['Sic']['check_30'] == 0 && $sic['Sic']['check_90'] == 0 &&
+                    $sic['Sic']['check_100'] == 0 && $sic['Sic']['check_40'] == 0 && $sic['Sic']['check_50'] == 0) {
+                    $this->set('check_20', 0);
+                    $this->set('checked_20', 0);
+                    if($sic['Sic']['total'] < $this->amountJS) {
+                        $this->set('closed', 0);
+                    }
+                }
+            } elseif($role == 30 && $sic['Sic']['status_id'] != 10) {
+                // CO
+                if((($sic['Sic']['required_20'] == 1 && $sic['Sic']['check_20'] == 1) || $sic['Sic']['required_20'] == 0) && 
+                    $sic['Sic']['required_30'] == 1 && $sic['Sic']['check_30'] == 0 && $sic['Sic']['check_90'] == 0 &&
+                    $sic['Sic']['check_100'] == 0 && $sic['Sic']['check_40'] == 0 && $sic['Sic']['check_50'] == 0) {
+                    //$this->set('required_30', 1);
+                    $this->set('required_30', 0);
+                    $this->set('required_90', 0);
+                    $this->set('required_100', 0);
+                    //$this->set('check_30', 1);
+                    $this->set('check_30', 0);
+                    $this->set('checked_30', $loggedUserId);
+                    if($sic['Sic']['total'] < $this->amountCO) {
+                        $this->set('closed', 1);
+                    }
+                } elseif($sic['Sic']['check_30'] == 1 && $sic['Sic']['check_90'] == 0 &&
+                    $sic['Sic']['check_100'] == 0 && $sic['Sic']['check_40'] == 0 && $sic['Sic']['check_50'] == 0) {
+                    $this->set('check_30', 0);
+                    $this->set('checked_30', 0);
+                    if($sic['Sic']['total'] < $this->amountCO) {
+                        $this->set('closed', 0);
+                    }
+                }
+            } elseif($role == 90 && $sic['Sic']['status_id'] != 10) {
+                // GT
+                if((($sic['Sic']['required_20'] == 1 && $sic['Sic']['check_20'] == 1) || $sic['Sic']['required_20'] == 0) && 
+                    $sic['Sic']['required_90'] == 1 && $sic['Sic']['check_90'] == 0) {
+                    $this->set('required_30', 0);
+                    $this->set('required_90', 1);
+                    $this->set('required_100', 0);
+                    $this->set('check_90', 1);
+                    $this->set('checked_90', $loggedUserId);
+                    if($sic['Sic']['total'] < $this->amountGT) {
+                        $this->set('closed', 1);
+                    }
+                } elseif($sic['Sic']['check_90'] == 1 && $sic['Sic']['check_40'] == 0 && $sic['Sic']['check_50'] == 0) {
+                    $this->set('check_90', 0);
+                    $this->set('checked_90', 0);
+                    if($sic['Sic']['total'] < $this->amountGT) {
+                        $this->set('closed', 0);
+                    }
+                }
+            } elseif($role == 100 && $sic['Sic']['status_id'] != 10) {
+                // TO
+                if((($sic['Sic']['required_20'] == 1 && $sic['Sic']['check_20'] == 1) || $sic['Sic']['required_20'] == 0) && 
+                    $sic['Sic']['check_100'] == 0) {
+                    $this->set('required_30', 0);
+                    $this->set('required_90', 0);
+                    $this->set('required_100', 1);
+                    $this->set('check_100', 1);
+                    $this->set('checked_100', $loggedUserId);
+                    if($sic['Sic']['total'] < 1000000) {
+                        $this->set('closed', 1);
+                    }
+                } elseif($sic['Sic']['check_100'] == 1 && $sic['Sic']['check_40'] == 0 && $sic['Sic']['check_50'] == 0) {
+                    $this->set('check_100', 0);
+                    $this->set('checked_100', 0);
+                    if($sic['Sic']['total'] < 1000000) {
+                        $this->set('closed', 0);
+                    }
+                }
+            // } elseif($role == 40 && $sic['Sic']['status_id'] != 10 && $sic['Sic']['required_40'] == 1) {
+            //     $this->set('check_10', ($sic['Sic']['required_10'] == 1 ? 1 : 0));
+            //     $this->set('check_20', ($sic['Sic']['required_20'] == 1 ? 1 : 0));
+            //     $this->set('check_30', ($sic['Sic']['required_30'] == 1 ? 1 : 0));
+            //     $this->set('check_40', 1);
+            //     $this->set('check_50', 0);
+            //     $this->set('check_90', ($sic['Sic']['required_90'] == 1 ? 1 : 0));
+            //     $this->set('check_100', ($sic['Sic']['required_100'] == 1 ? 1 : 0));
+            //     $this->set('checked_10', ($sic['Sic']['checked_10'] > 0 ? $sic['Sic']['checked_10'] : ($sic['Sic']['required_10'] == 1 ? $loggedUserId : 0)));
+            //     $this->set('checked_20', ($sic['Sic']['checked_20'] > 0 ? $sic['Sic']['checked_20'] : ($sic['Sic']['required_20'] == 1 ? $loggedUserId : 0)));
+            //     $this->set('checked_30', ($sic['Sic']['checked_30'] > 0 ? $sic['Sic']['checked_30'] : ($sic['Sic']['required_30'] == 1 ? $loggedUserId : 0)));
+            //     $this->set('checked_40', $loggedUserId);
+            //     $this->set('checked_50', ($sic['Sic']['required_50'] == 1 ? $loggedUserId : 0));
+            //     $this->set('checked_90', ($sic['Sic']['checked_90'] > 0 ? $sic['Sic']['checked_90'] : ($sic['Sic']['required_90'] == 1 ? $loggedUserId : 0)));
+            //     $this->set('checked_100', ($sic['Sic']['checked_100'] > 0 ? $sic['Sic']['checked_100'] : ($sic['Sic']['required_100'] == 1 ? $loggedUserId : 0)));
+                
+            //     if($sic['Sic']['required_50'] == 0) {
+            //         $this->set('closed', 1);
+            //     }
+
+            //     if($sic['Sic']['check_40'] == 1 && $sic['Sic']['check_50'] == 0) {
+            //         $this->set('check_10', 0);
+            //         $this->set('check_20', 0);
+            //         $this->set('check_30', 0);
+            //         $this->set('check_40', 0);
+            //         $this->set('check_50', 0);
+            //         $this->set('check_90', 0);
+            //         $this->set('check_100', 0);
+            //         $this->set('checked_10', 0);
+            //         $this->set('checked_20', 0);
+            //         $this->set('checked_30', 0);
+            //         $this->set('checked_40', 0);
+            //         $this->set('checked_50', 0);
+            //         $this->set('checked_90', 0);
+            //         $this->set('checked_100', 0);
+            //         $this->set('closed', 0);
+            //     }
+            } elseif($role == 50 && $sic['Sic']['status_id'] != 10 && $sic['Sic']['required_50'] == 1) {
+                $this->set('check_10', ($sic['Sic']['required_10'] == 1 ? 1 : 0));
+                $this->set('check_20', ($sic['Sic']['required_20'] == 1 ? 1 : 0));
+                $this->set('check_30', ($sic['Sic']['required_30'] == 1 ? 1 : 0));
+                $this->set('check_40', 0);
+                $this->set('check_50', 1);
+                $this->set('check_90', ($sic['Sic']['required_90'] == 1 ? 1 : 0));
+                $this->set('check_100', ($sic['Sic']['required_100'] == 1 ? 1 : 0));
+                $this->set('checked_10', ($sic['Sic']['checked_10'] > 0 ? $sic['Sic']['checked_10'] : ($sic['Sic']['required_10'] == 1 ? $loggedUserId : 0)));
+                $this->set('checked_20', ($sic['Sic']['checked_20'] > 0 ? $sic['Sic']['checked_20'] : ($sic['Sic']['required_20'] == 1 ? $loggedUserId : 0)));
+                $this->set('checked_30', ($sic['Sic']['checked_30'] > 0 ? $sic['Sic']['checked_30'] : ($sic['Sic']['required_30'] == 1 ? $loggedUserId : 0)));
+                $this->set('checked_40', $loggedUserId);
+                $this->set('checked_50', $loggedUserId);
+                $this->set('checked_90', ($sic['Sic']['checked_90'] > 0 ? $sic['Sic']['checked_90'] : ($sic['Sic']['required_90'] == 1 ? $loggedUserId : 0)));
+                $this->set('checked_100', ($sic['Sic']['checked_100'] > 0 ? $sic['Sic']['checked_100'] : ($sic['Sic']['required_100'] == 1 ? $loggedUserId : 0)));
+                $this->set('closed', 1);
+
+                if($sic['Sic']['check_50'] == 1) {
+                    $this->set('check_10', 0);
+                    $this->set('check_20', 0);
+                    $this->set('check_30', 0);
+                    $this->set('check_40', 0);
+                    $this->set('check_50', 0);
+                    $this->set('check_90', 0);
+                    $this->set('check_100', 0);
+                    $this->set('checked_10', 0);
+                    $this->set('checked_20', 0);
+                    $this->set('checked_30', 0);
+                    $this->set('checked_40', 0);
+                    $this->set('checked_50', 0);
+                    $this->set('checked_90', 0);
+                    $this->set('checked_100', 0);
+                    $this->set('closed', 0);
+                }
+            }
+            $this->save();
+        }
+    }
+
+    public function checkSupplierData($check) {
+        $supplier = $this->query("SELECT * FROM suppliers WHERE id = " .$check['supplier_id']);
+
+        if(count($supplier) > 0) {
+            if($supplier[0]['suppliers']['iibb_category_id'] == '' || $supplier[0]['suppliers']['iibb_category_id'] == 0 || $supplier[0]['suppliers']['iva_id'] == '' || $supplier[0]['suppliers']['iva_id'] == 0) {
+                return false;
+            } elseif($supplier[0]['suppliers']['bank_name'] == '' || $supplier[0]['suppliers']['bank_cbu'] == '' || $supplier[0]['suppliers']['bank_account'] == '' || $supplier[0]['suppliers']['bank_accout_name'] == '' || $supplier[0]['suppliers']['contact_email'] == '') {
+                return false;
+            }
+        }
+        return true;
+    }    
+
+    // configura el n° de SIC
+	public function afterSave(){
+		// fondo fijo o mano de obra
+		// actualiza el contrato
+		if( $this->data['Sic']['closed'] == 1 && in_array($this->data['Sic']['type_id'], [SIC_MANO_OBRA, SIC_FONDO_FIJO]) && !empty($this->data['Sic']['eventual_contract_id'])){
+			$this->EventualContract->EventualContractBudget->updateContractCostsByContractId($this->data['Sic']['eventual_contract_id']);
+		}
+
+		if( isset($this->data['Sic']['center_id'])){
+			$center_id = $this->data['Sic']['center_id'];
+			$center = $this->Center->read(null,$center_id);
+			$this->saveField('sic_number', 'SIC-'.str_pad($this->id, 5, "0", STR_PAD_LEFT).'-'.$center['Center']['code'] );
+		}
+        
+        //$this->authorizationLevelsUpdate($this->data['Sic']['id']);
+        
+		return true;
+	}
+
+}

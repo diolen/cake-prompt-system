@@ -21,37 +21,59 @@ abstract class AbstractPromptTemplate
      */
     public function compile(): string
     {
-        $template = <<<'PROMPT'
-# СИСТЕМНЫЕ ОГРАНИЧЕНИЯ ОКРУЖЕНИЯ (КРИТИЧЕСКИ ВАЖНО)
-Вы — эксперт по legacy-разработке на PHP и фреймворку CakePHP v2.x.
-Весь предоставляемый вами код ДОЛЖЕН строго соответствовать стандартам **PHP 5.6**.
+        // Подгружаем внешний текстовый макет
+        $templatePath = __DIR__ . '/Templates/base_layout.txt';
+        
+        if (!file_exists($templatePath)) {
+            // Резервный путь, если файл положили в корень Generator
+            $templatePath = __DIR__ . '/base_layout.txt';
+        }
 
-## Жесткие синтаксические запреты PHP 5.6:
-1. ЗАПРЕЩЕНО использовать короткий синтаксис массивов `[]`. Используйте только `array()`.
-2. ЗАПРЕЩЕН Null Coalescing оператор `??`. Используйте `isset($var) ? $var : $default`.
-3. ЗАПРЕЩЕНЫ стрелочные функции `fn() =>`. Используйте `function() use () {}`.
-4. ЗАПРЕЩЕНЫ typed properties (модификаторы типов свойств класса, например: private $name;). Пишите просто private $name;.
-5. ЗАПРЕЩЕНЫ return types и argument types для скалярных типов (string, int, bool) в сигнатурах методов.
+        if (!file_exists($templatePath)) {
+            return "// [Ошибка системы] Не найден файл шаблона: " . $templatePath;
+        }
 
----
+        $template = file_get_contents($templatePath);
 
-# КОНТЕКСТ АНАЛИЗИРУЕМОГО КОМПОНЕНТА
-Ниже приведены данные статического анализа файла, который необходимо обработать:
-{CONTEXT_JSON}
+        // Извлекаем исходный код целевого файла
+        $sourceCode = $this->extractSourceCode();
 
----
+        // Формируем карту замен. Передавая массивы в str_replace, 
+        // мы гарантируем, что PHP выполнит подстановку за один проход.
+        // Это предотвращает рекурсивные и бесконечные замены, если маркеры встретятся внутри кода.
+        $replacements = array(
+            '[[CONTEXT_JSON]]'     => $this->renderContextJSON(),
+            '[[TASK_INSTRUCTION]]' => $this->getTaskInstruction(),
+            '[[SOURCE_CODE]]'      => trim($sourceCode) . "\n"
+        );
 
-# ИНСТРУКЦИЯ К ВЫПОЛНЕНИЮ ЗАДАЧИ
-{TASK_INSTRUCTION}
+        return str_replace(
+            array_keys($replacements), 
+            array_values($replacements), 
+            $template
+        );
+    }
 
-ОТВЕТЬТЕ ТОЛЬКО КОДОМ И КРАТКИМ ОПИСАНИЕМ ИЗМЕНЕНИЙ НА РУССКОМ ЯЗЫКЕ.
-PROMPT;
+    /**
+     * Автоматически считывает исходный код анализируемого файла
+     */
+    private function extractSourceCode(): string
+    {
+        $filePath = $this->analysisResult['task_context']['file_path'] ?? null;
 
-        // Безопасно подставляем динамический контекст без варнингов парсера
-        $compiled = str_replace('{CONTEXT_JSON}', $this->renderContextJSON(), $template);
-        $compiled = str_replace('{TASK_INSTRUCTION}', $this->getTaskInstruction(), $compiled);
+        if (!$filePath) {
+            return '// [Ошибка системы] Путь к файлу не найден в метаконтексте анализа.';
+        }
 
-        return $compiled;
+        if (!file_exists($filePath)) {
+            return "// [Ошибка системы] Файл не найден по пути: {$filePath}";
+        }
+
+        if (!is_readable($filePath)) {
+            return "// [Ошибка системы] Файл найден, но недоступен для чтения: {$filePath}";
+        }
+
+        return file_get_contents($filePath);
     }
 
     /**
