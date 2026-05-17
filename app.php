@@ -5,15 +5,17 @@ require __DIR__ . '/vendor/autoload.php';
 use App\Analyzer\CakeV2PropertyExtractor;
 use App\Analyzer\ProjectIndexer;
 use App\Analyzer\CakeAnalyzer;
+use App\Shared\JsonSchemaValidator;
+use App\Generator\PromptGenerator;
 
 echo "=== CakePrompt Engineering System v1.0 ===\n\n";
 
 // Проверяем базовые аргументы CLI
 if ($argc < 3) {
     echo "Использование:\n";
-    echo "  docker compose run --rm analyzer php app.php [путь_к_файлу] [тип_задачи]\n\n";
+    echo "  docker-compose run --rm analyzer php app.php [путь_к_файлу] [тип_задачи]\n\n";
     echo "Пример:\n";
-    echo "  docker compose run --rm analyzer php app.php /app/docs/examples/UsersController.php REFACTOR\n";
+    echo "  docker-compose run --rm analyzer php app.php docs/UsersController.php REFACTOR\n";
     exit(1);
 }
 
@@ -34,41 +36,47 @@ if (!file_exists($filePath)) {
 }
 
 echo "🎯 Файл для анализа: $filePath\n";
-echo "📋 Тип задачи: $taskType\n";
-
-// ... код инициализации индексатора и анализатора ...
+echo "📋 Тип задачи: $taskType\n\n";
 
 try {
-    // 1. Индексация (как в Задаче А)
+    // 1. Индексация проекта для расчета Influence Score
     echo "⚙️  Инициализация глобального индексатора...\n";
     $extractor = new CakeV2PropertyExtractor();
     $indexer = new ProjectIndexer($extractor);
     $projectRoot = dirname($filePath, 2);
     
+    echo "📂 Корень проекта определен как: $projectRoot\n";
+    echo "⏳ Сканирование проекта и расчет Influence Score... ";
     $indexer->indexProject($projectRoot);
     echo "Готово!\n\n";
 
-    // 2. Детальный анализ
+    // 2. Детальный статический анализ целевого файла
     echo "⏳ Запуск детального анализа файла...\n";
     $analyzer = new CakeAnalyzer($filePath, $indexer);
     $analysisResult = $analyzer->analyze();
 
-    // 3. Жесткая валидация контракта данных (НОВОЕ В ЗАДАЧЕ Б)
+    // 3. Жесткая валидация контракта данных по JSON-схеме
     echo "🛡️  Валидация структуры данных по JSON-схеме... ";
     $schemaPath = __DIR__ . '/src/Shared/analysis-schema.json';
-    $validator = new App\Shared\JsonSchemaValidator($schemaPath);
+    $validator = new JsonSchemaValidator($schemaPath);
     $validator->validate($analysisResult);
     echo "Успешно!\n\n";
 
-    // 4. Превращаем результат в JSON
-    $jsonOutput = json_encode($analysisResult, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    // 4. Генерация финального промпта для LLM (Модуль Generator)
+    echo "🧠 Формирование оптимизированного промпта для LLM...\n";
+    $generator = new PromptGenerator();
+    $compiledPrompt = $generator->generate($analysisResult, $taskType);
     
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        throw new Exception("Ошибка генерации JSON: " . json_last_error_msg());
-    }
+    echo "==================== СКОМПИЛИРОВАННЫЙ ПРОМПТ ====================\n";
+    echo $compiledPrompt . "\n";
+    echo "=================================================================\n\n";
 
-    echo "✅ Анализ успешно завершен!\n\n";
-    echo $jsonOutput . "\n";
+    // Сохраняем промпт в файл рядом с анализируемым файлом для удобства
+    $promptFile = $filePath . '.' . strtolower($taskType) . '.prompt.txt';
+    file_put_contents($promptFile, $compiledPrompt);
+    echo "💾 Промпт также сохранен в файл: $promptFile\n\n";
+    
+    echo "✅ Работа системы успешно завершена!\n";
 
 } catch (Exception $e) {
     echo "❌ Произошла ошибка во время работы системы:\n";
