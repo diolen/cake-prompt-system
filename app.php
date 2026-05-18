@@ -10,17 +10,35 @@ use App\Generator\PromptGenerator;
 
 echo "=== CakePrompt Engineering System v1.0 ===\n\n";
 
-// Проверяем базовые аргументы CLI
-if ($argc < 3) {
+// Переменные для хранения флагов и позиционных аргументов
+$positionalArgs = [];
+$customInstruction = '';
+
+// Парсим аргументы командной строки (пропускаем $argv[0] — имя скрипта)
+for ($i = 1; $i < $argc; $i++) {
+    $arg = $argv[$i];
+    
+    if (strpos($arg, '--instruction=') === 0) {
+        // Вырезаем значение из флага --instruction="текст"
+        $customInstruction = substr($arg, 14);
+    } else {
+        // Собираем стандартные позиционные аргументы
+        $positionalArgs[] = $arg;
+    }
+}
+
+// Проверяем наличие обязательных позиционных параметров (путь и тип задачи)
+if (count($positionalArgs) < 2) {
     echo "Использование:\n";
-    echo "  docker-compose run --rm analyzer php app.php [путь_к_файлу] [тип_задачи]\n\n";
-    echo "Пример:\n";
+    echo "  docker-compose run --rm analyzer php app.php [путь_к_файлу] [тип_задачи] [--instruction=\"Ваше ТЗ\"]\n\n";
+    echo "Примеры:\n";
     echo "  docker-compose run --rm analyzer php app.php docs/UsersController.php REFACTOR\n";
+    echo "  docker-compose run --rm analyzer php app.php docs/UsersController.php REFACTOR --instruction=\"Вынеси ID в конфиг\"\n";
     exit(1);
 }
 
-$filePath = $argv[1];
-$taskType = strtoupper($argv[2]);
+$filePath = $positionalArgs[0];
+$taskType = strtoupper($positionalArgs[1]);
 
 // Валидация типа задачи
 $allowedTypes = ['FEATURE', 'REFACTOR', 'DEBUG'];
@@ -36,7 +54,11 @@ if (!file_exists($filePath)) {
 }
 
 echo "🎯 Файл для анализа: $filePath\n";
-echo "📋 Тип задачи: $taskType\n\n";
+echo "📋 Тип задачи: $taskType\n";
+if (!empty($customInstruction)) {
+    echo "📝 Кастомное ТЗ: \"$customInstruction\"\n";
+}
+echo "\n";
 
 try {
     // 1. Индексация проекта для расчета Influence Score
@@ -62,10 +84,10 @@ try {
     $validator->validate($analysisResult);
     echo "Успешно!\n\n";
 
-    // 4. Генерация финального промпта для LLM
+    // 4. Генерация финального промпта для LLM (передаем кастомную инструкцию)
     echo "🧠 Формирование оптимизированного промпта для LLM... ";
     $generator = new PromptGenerator();
-    $compiledPrompt = $generator->generate($analysisResult, $taskType);
+    $compiledPrompt = $generator->generate($analysisResult, $taskType, $customInstruction);
     echo "Готово!\n\n";
     
     // =========================================================================

@@ -38,13 +38,77 @@
         "models": { "type": "array", "items": { "type": "string" } },
         "components": { "type": "array", "items": { "type": "string" } },
         "associations": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["type", "model"],
-            "properties": {
-              "type": { "type": "string" },
-              "model": { "type": "string" }
+          "type": "object",
+          "required": ["belongsTo", "hasMany", "hasOne", "hasAndBelongsToMany"],
+          "additionalProperties": false,
+          "properties": {
+            "belongsTo": {
+              "oneOf": [
+                { "type": "array", "maxItems": 0 },
+                {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "required": ["className", "foreignKey", "dependent"],
+                    "properties": {
+                      "className": { "type": "string" },
+                      "foreignKey": { "type": "string" },
+                      "dependent": { "type": "boolean" }
+                    }
+                  }
+                }
+              ]
+            },
+            "hasMany": {
+              "oneOf": [
+                { "type": "array", "maxItems": 0 },
+                {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "required": ["className", "foreignKey", "dependent"],
+                    "properties": {
+                      "className": { "type": "string" },
+                      "foreignKey": { "type": "string" },
+                      "dependent": { "type": "boolean" }
+                    }
+                  }
+                }
+              ]
+            },
+            "hasOne": {
+              "oneOf": [
+                { "type": "array", "maxItems": 0 },
+                {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "required": ["className", "foreignKey", "dependent"],
+                    "properties": {
+                      "className": { "type": "string" },
+                      "foreignKey": { "type": "string" },
+                      "dependent": { "type": "boolean" }
+                    }
+                  }
+                }
+              ]
+            },
+            "hasAndBelongsToMany": {
+              "oneOf": [
+                { "type": "array", "maxItems": 0 },
+                {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "required": ["className", "foreignKey", "dependent"],
+                    "properties": {
+                      "className": { "type": "string" },
+                      "foreignKey": { "type": "string" },
+                      "dependent": { "type": "boolean" }
+                    }
+                  }
+                }
+              ]
             }
           }
         }

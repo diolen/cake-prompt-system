@@ -17,9 +17,9 @@ abstract class AbstractPromptTemplate
     abstract public function getTaskInstruction(): string;
 
     /**
-     * Генерирует финальный системный промпт
+     * Генерирует финальный системный промпт с учетом кастомных требований
      */
-    public function compile(): string
+    public function compile(string $customInstruction = ''): string
     {
         // Подгружаем внешний текстовый макет
         $templatePath = __DIR__ . '/Templates/base_layout.txt';
@@ -38,13 +38,23 @@ abstract class AbstractPromptTemplate
         // Извлекаем исходный код целевого файла
         $sourceCode = $this->extractSourceCode();
 
+        // Формируем базовую инструкцию из стратегии подтипа задачи
+        $taskInstruction = $this->getTaskInstruction();
+
+        // Если переданы кастомные требования из консоли — внедряем их в блок инструкции
+        if (!empty($customInstruction)) {
+            $taskInstruction .= "\n\n### ⚡ КРИТИЧЕСКИЕ ДОПОЛНИТЕЛЬНЫЕ ТРЕБОВАНИЯ ПОЛЬЗОВАТЕЛЯ:\n";
+            $taskInstruction .= "При генерации кода вы обязаны беспрекословно учесть следующие точечные инструкции:\n";
+            $taskInstruction .= "> " . trim($customInstruction) . "\n";
+        }
+
         // Формируем карту замен. Передавая массивы в str_replace, 
         // мы гарантируем, что PHP выполнит подстановку за один проход.
         // Это предотвращает рекурсивные и бесконечные замены, если маркеры встретятся внутри кода.
         $replacements = array(
-            '[[CONTEXT_JSON]]'     => $this->renderContextJSON(),
-            '[[TASK_INSTRUCTION]]' => $this->getTaskInstruction(),
-            '[[SOURCE_CODE]]'      => trim($sourceCode) . "\n"
+            '[[CONTEXT_JSON]]'      => $this->renderContextJSON(),
+            '[[TASK_INSTRUCTION]]' => $taskInstruction,
+            '[[SOURCE_CODE]]'       => trim($sourceCode) . "\n"
         );
 
         return str_replace(

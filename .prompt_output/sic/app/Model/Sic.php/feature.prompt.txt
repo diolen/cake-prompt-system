@@ -126,18 +126,13 @@
 ---
 
 # ИНСТРУКЦИЯ К ВЫПОЛНЕНИЮ ЗАДАЧИ
-Выполните рефакторинг целевого файла.
-⚠️ ВНИМАНИЕ: Этот компонент имеет высокий Influence Score (14). От него зависят: ReportsController, InvoicesOcController, ReportsmeController, RatingSuppliersController, SicsStatusesLog, RatingSupplier, EventualContract, SicsMovement, Contract, AppffSurrender, AlertShell, VehicleShell, RatingSuppliesUpdateShell, CopernicoShell. Изменения не должны сломать их публичный интерфейс! Действуйте максимально консервативно.
+Разработайте и внедрите новую фичу (новые методы/логику) в целевой файл.
+⚠️ ВНИМАНИЕ: Изменения вносятся в компонент с высоким Influence Score (14). От него зависят: ReportsController, InvoicesOcController, ReportsmeController, RatingSuppliersController, SicsStatusesLog, RatingSupplier, EventualContract, SicsMovement, Contract, AppffSurrender, AlertShell, VehicleShell, RatingSuppliesUpdateShell, CopernicoShell. Реализуйте новые методы так, чтобы полностью исключить сайд-эффекты для зависимых классов. При необходимости используйте опциональные аргументы со значениями по умолчанию.
 
-Цели рефакторинга:
-1. Оптимизация legacy-кода без нарушения обратной совместимости.
-2. Исправление потенциальных уязвимостей или неоптимальных запросов, если они обнаружены.
-3. Соблюдение конвенций CakePHP v2 (использование моделей через $this->{ModelName}, правильная работа с компонентами).
-
-### ⚡ КРИТИЧЕСКИЕ ДОПОЛНИТЕЛЬНЫЕ ТРЕБОВАНИЯ ПОЛЬЗОВАТЕЛЯ:
-При генерации кода вы обязаны беспрекословно учесть следующие точечные инструкции:
-> Оптимизируй legacy-циклы foreach, перепиши их через Hash::extract или Hash::combine, где это возможно, для ускорения работы на PHP 5.6
-
+Правила реализации фичи в CakePHP v2:
+1. Архитектурное разделение: Соблюдайте парадигму "Fat Model, Skinny Controller". Вся бизнес-логика, манипуляции с данными и валидация должны находиться в Модели. Контроллер должен лишь координировать поток данных.
+2. Работа с БД: Запрещено писать сырые SQL-запросы в контроллерах. Используйте методыORM CakePHP ($this->Model->find(), $this->Model->save() и т.д.).
+3. Использование связей: Обратите внимание на доступныеRelations в контексте (массивы models, components, associations). Используйте их для вызова методов смежных сущностей вместо дублирования кода.
 
 ---
 

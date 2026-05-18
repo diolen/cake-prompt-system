@@ -15,6 +15,10 @@ class CakeAnalyzer
     // В конструктор теперь обязательно передаем ProjectIndexer
     public function __construct(string $filePath, ProjectIndexer $indexer)
     {
+        if (!file_exists($filePath)) {
+            throw new Exception("Файл не найден для анализа: {$filePath}");
+        }
+
         $this->filePath = $filePath;
         $this->code = file_get_contents($filePath);
         $this->indexer = $indexer;
@@ -33,33 +37,40 @@ class CakeAnalyzer
 
         // Запускаем AST-парсер для CakePHP v2
         if ($version === 'v2' && ($layer === 'Controller' || $layer === 'Model')) {
+            // Используем фабрику для создания парсера под текущую версию php-parser
             $parser = (new ParserFactory())->createForNewestSupportedVersion();
             
             try {
                 $ast = $parser->parse($this->code);
-                
                 $traverser = new NodeTraverser();
-                $extractor = new CakeV2PropertyExtractor();
-                $traverser->addVisitor($extractor);
-                
-                $traverser->traverse($ast);
 
                 if ($layer === 'Controller') {
+                    // Извлекаем свойства контроллера ($uses, $components, loadModel)
+                    $extractor = new CakeV2PropertyExtractor();
+                    $traverser->addVisitor($extractor);
+                    $traverser->traverse($ast);
+
                     $models = $extractor->getModels();
                     $components = $extractor->getComponents();
+
                 } elseif ($layer === 'Model') {
-                    $associations = $extractor->getAssociations();
+                    // ГЛУБОКИЙ АНАЛИЗ МОДЕЛЕЙ: Извлекаем связи БД ($belongsTo, $hasMany и т.д.)
+                    $modelExtractor = new CakeV2ModelExtractor();
+                    $traverser->addVisitor($modelExtractor);
+                    $traverser->traverse($ast);
+
+                    $associations = $modelExtractor->getAssociations();
                 }
                 
             } catch (\Throwable $e) {
-                // Игнорируем синтаксические ошибки легаси-файлов
+                // Игнорируем синтаксические ошибки легаси-файлов, возвращая пустые структуры
             }
         }
 
         // Расчет метрики Connectivity (Связность / Исходящие связи)
         $connectivity = ($layer === 'Controller') 
             ? count($models) + count($components) 
-            : count($associations);
+            : $this->countAssociations($associations);
 
         // Получаем метрики влияния из глобального индексатора (Входящие связи)
         $influenceScore = $this->indexer->getInfluenceScore($className);
@@ -126,5 +137,19 @@ class CakeAnalyzer
         }
 
         return 'v2';
+    }
+
+    /**
+     * Хелпер для подсчета общего количества ассоциаций модели
+     */
+    private function countAssociations(array $associations): int
+    {
+        $count = 0;
+        foreach ($associations as $type => $relations) {
+            if (is_array($relations)) {
+                $count += count($relations);
+            }
+        }
+        return $count;
     }
 }

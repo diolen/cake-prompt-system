@@ -1,0 +1,535 @@
+# СИСТЕМНЫЕ ОГРАНИЧЕНИЯ ОКРУЖЕНИЯ (КРИТИЧЕСКИ ВАЖНО)
+Вы — эксперт по legacy-разработке на PHP и фреймворку CakePHP v2.x.
+Весь предоставляемый вами код ДОЛЖЕН строго соответствовать стандартам **PHP 5.6**.
+
+## Жесткие синтаксические запреты PHP 5.6:
+1. ЗАПРЕЩЕНО использовать короткий синтаксис массивов `[]`. Используйте только `array()`.
+2. ЗАПРЕЩЕН Null Coalescing оператор `??`. Используйте `isset($var) ? $var : $default`.
+3. ЗАПРЕЩЕНЫ стрелочные функции `fn() =>`. Используйте `function() use () {}`.
+4. ЗАПРЕЩЕНЫ typed properties (модификаторы типов свойств класса, например: private $name;). Пишите просто private $name;.
+5. ЗАПРЕЩЕНЫ return types и argument types для скалярных типов (string, int, bool) в сигнатурах методов.
+
+---
+
+# КОНТЕКСТ АНАЛИЗИРУЕМОГО КОМПОНЕНТА
+Ниже приведены данные статического анализа файла, который необходимо обработать:
+{
+    "system_meta": {
+        "framework": "CakePHP",
+        "framework_version": "v2",
+        "php_version": "5.6"
+    },
+    "task_context": {
+        "target_layer": "Controller",
+        "file_path": "/sic/app/Controller/EventualContractReportsController.php",
+        "class_name": "EventualContractReportsController"
+    },
+    "metrics": {
+        "connectivity": 7,
+        "influence_score": 0
+    },
+    "relations": {
+        "models": [
+            "EventualContract",
+            "Supplier",
+            "Center",
+            "UsersCenter",
+            "OperationUnit",
+            "UsersOperationUnit",
+            "Person"
+        ],
+        "components": [],
+        "associations": []
+    },
+    "impacted_by": []
+}
+
+---
+
+# ИНСТРУКЦИЯ К ВЫПОЛНЕНИЮ ЗАДАЧИ
+Найдите и устраните баг или уязвимость в целевом файле.
+
+Правила отладки и исправления ошибок:
+1. Защита от Null: В PHP 5.6 нет Nullsafe-оператора (?->). Обязательно добавляйте явные проверки if (is_object($var)) или if (!empty($var)) перед вызовом методов смежных моделей или компонентов.
+2. Логирование CakePHP v2: При необходимости логирования ошибок используйте CakeLog::write('debug', 'сообщение') или $this->log('сообщение', 'debug'). Запрещено использовать современные методы логирования PSR-3.
+3. Обработка исключений: Помните, что в PHP 5.6 базовый интерфейс \Throwable отсутствует, а большинство внутренних ошибок PHP не перехватываются через try/catch (Exception). Убедитесь, что логика валидации предотвращает фатальные ошибки до их возникновения.
+
+---
+
+# ИСХОДНЫЙ КОД ЦЕЛЕВОГО ФАЙЛА
+Ниже представлен оригинальный код компонента, который требует обработки. 
+Изучите его структуру, методы и зависимости перед началом работы:
+
+```php
+<?php
+App::uses('AppControllerBaseSearch', 'Controller');
+
+class EventualContractReportsController extends AppControllerBaseSearch {
+
+	public $name = 'EventualContractReports';
+    public $paginate = array();
+    public $uses = array('EventualContract', 'Supplier');
+    
+    private $_sessionKey = 'search_reporte';
+    private $_dateConversion = array('date_start'); # not used
+
+	public function beforeFilter() {
+		parent::beforeFilter();
+        $this->layout = 'admin';
+    }
+
+    function _getOptions(){
+        $options = array();
+        
+        // condiciones
+        $conditions = array();
+        $session = $this->Session->read($this->_sessionKey);
+        $hasFilters = false;
+
+        if(!empty($session['date_start'])){
+            $d = split('-', $session['date_start']);
+            $conditions['EventualContractBudget.est_work_date >='] = "{$d[2]}-{$d[1]}-{$d[0]}";
+            $this->request->data[$this->modelClass]['date_start'] = $session['date_start'];
+            $hasFilters = true;
+        }
+        if(!empty($session['date_end'])){
+            $d = split('-', $session['date_end']);
+            $conditions['EventualContractBudget.est_work_date <='] = "{$d[2]}-{$d[1]}-{$d[0]}";
+            $this->request->data[$this->modelClass]['date_end'] = $session['date_end'];
+            $hasFilters = true;
+        }
+        if(!empty($session['operation_unit_id'])){
+            $conditions['EventualContractBudget.operation_unit_id'] = $session['operation_unit_id'];
+            $this->request->data[$this->modelClass]['operation_unit_id'] = $session['operation_unit_id'];
+            $hasFilters = true;
+        }
+
+        if(!empty($session['contract_id'])){
+            $conditions['EventualContract.id'] = $session['contract_id'];
+            $this->request->data[$this->modelClass]['contract_id'] = $session['contract_id'];
+            $hasFilters = true;
+        }        
+        
+        if(!empty($session['jefeobra_id'])){
+            $conditions['EventualContractBudget.jefeobra_id'] = $session['jefeobra_id'];
+            $this->request->data[$this->modelClass]['jefeobra_id'] = $session['jefeobra_id'];
+            $hasFilters = true;
+		}
+		
+		// estado
+        if(!empty($session['status_id'])){
+            $conditions['EventualContract.state_id'] = $session['status_id'];
+            $this->request->data[$this->modelClass]['status_id'] = $session['status_id'];
+            $hasFilters = true;
+		}
+        if(!empty($session['budget_status_id'])){
+            $conditions['EventualContractBudget.state_id'] = $session['budget_status_id'];
+            $this->request->data[$this->modelClass]['budget_status_id'] = $session['budget_status_id'];
+            $hasFilters = true;
+		}
+		
+		// centro
+        if(!empty($session['center_id'])){
+            $conditions['EventualContractBudget.center_id'] = $session['center_id'];
+            $this->request->data[$this->modelClass]['center_id'] = $session['center_id'];
+            $hasFilters = true;
+		}
+		
+		// tipo de obra
+        if(!empty($session['work_type_id'])){
+            $conditions['EventualContractBudget.work_type_id'] = $session['work_type_id'];
+            $this->request->data[$this->modelClass]['work_type_id'] = $session['work_type_id'];
+            $hasFilters = true;
+		}
+
+		// nro de obra
+        if(!empty($session['contract_number'])){
+            $conditions['EventualContractBudget.contract_number'] = $session['contract_number'];
+            $this->request->data[$this->modelClass]['contract_number'] = $session['contract_number'];
+            $hasFilters = true;
+		}
+
+		// ubicación
+        if(!empty($session['location'])){
+            $conditions['EventualContractBudget.location LIKE'] = '%'.$session['location'].'%';
+            $this->request->data[$this->modelClass]['location'] = $session['location'];
+            $hasFilters = true;
+		}
+
+		// descripción
+        if(!empty($session['description'])){
+            $conditions['EventualContractBudget.title LIKE'] = '%'.$session['description'].'%';
+            $this->request->data[$this->modelClass]['description'] = $session['description'];
+            $hasFilters = true;
+		}
+        
+        // Jefe de Obra
+        if($this->Session->read('Auth.User.role') == 60) {
+            $conditions['EventualContractBudget.jefeobra_id'] = $this->Session->read('Auth.User.id');
+            $this->request->data['EventualContract']['jefeobra_id'] = $this->Session->read('Auth.User.id');
+            $hasFilters = true;            
+        }        
+
+        $options['conditions'] = $conditions;
+        $options['contain'] = array('EventualContractBudget', 'City', 'State');
+        $options['order'] = array('EventualContractBudget.est_work_date');
+
+        $this->set('hasFilters', $hasFilters);
+
+        return $options;
+    }
+
+    function _viewVars(){
+        $session = $this->Session->read($this->_sessionKey);
+        if(!empty($session['operation_unit_id']) && count($session['operation_unit_id']) > 0) {
+            $opUnitId = $session['operation_unit_id'];
+            $this->loadModel('Center');
+            $centers = $this->Center->find('list', array('conditions' => array('Center.operation_unit_id' => $opUnitId)));
+            $eventualContracts = $this->EventualContract->EventualContractBudget->find('list', array(
+                'fields' => array('EventualContractBudget.id', 'EventualContractBudget.full_contract'),
+                'conditions' => array('EventualContractBudget.center_id' => array_keys($centers)),
+                'order' => array('EventualContractBudget.full_contract')
+            ));
+            natsort($eventualContracts);
+            $this->set('contracts', $eventualContracts);            
+        } else {
+            // $this->set('contracts', $this->EventualContract->getList());
+            $this->set('contracts', '');
+        }
+        
+        $this->set('role', $this->Session->read('Auth.User.role'));
+        $this->set('userRoleId', $this->Session->read('Auth.User.id'));
+        
+        $userOptions = array(
+			'fields' => array('User.id', 'User.first_name'),
+			'order' => array('User.first_name'),
+            'conditions' => array('User.role' => 60)
+            );
+        if($this->Session->read('Auth.User.role') == 60) {
+            $userOptions['conditions'][] = array('User.id =' . $this->Session->read('Auth.User.id'));
+        }
+        $usuarios = $this->EventualContract->EventualContractBudget->User->find('list', $userOptions);
+        $this->set('users', $usuarios);
+		
+		// posibles estados
+		$this->set('statuses', $this->EventualContract->State->getList(2) );
+		//$this->set('budget_statuses', $this->EventualContract->State->getList(1) );
+		$this->set('centers', $this->EventualContract->EventualContractBudget->Center->getList() );
+	}
+	
+	function _getColNames(){
+		return array(
+			'Fecha de Alta' => 'date',
+			'Estado Contrato' => '',
+			'Centro Operativo' => '',
+			'Nro de Obra' => '',
+			'Descripción' => '',
+			'Ubicación' => '',
+			'Tipo' => '',
+			'Ingresos Pto.' => 'currency',
+			'Ingresos Facturados' => 'currency',
+			'Costos Bs y serv.' => 'currency',
+			'MO' => 'currency',
+			'FF' => 'currency',
+			'Otros Costos' => 'currency',
+			'Total Costos' => 'currency',
+			'RB Real' => 'currency',
+			'%RB Real' => 'percentage',
+			'RB Pto.' => 'currency',
+			'%RB Pto.' => 'percentage',
+			'Jefe de Obra' => '',
+		);
+	}
+
+	/**
+	 * Formatea cada campo segun su tipo
+	 */
+	function _formatValue($type, $value, $output){
+		$formattedValue = $value;
+		switch($type){
+			case 'percentage':
+				$formattedValue = ($output === 'screen' && $value != 'N/A') ? number_format( $value, 1, ',', '').'%' : $value;
+				break;
+			case 'currency':
+				$formattedValue = ($output === 'screen') ? number_format( $value, 0, '', '.') : $value;
+				break;
+			case 'date':
+				$formattedValue = (new \Datetime( $value))->format('d/m/Y');
+				break;
+		}
+		return $formattedValue;
+	}
+
+	function _formatLine($arrayLine, $output){
+		$colTypes = array_values($this->_getColNames());
+		$formattedLine = [];
+		foreach($arrayLine as $pos => $value){
+			$formattedLine[] = $this->_formatValue($colTypes[$pos], $value, $output);
+		}
+		return $formattedLine;
+	}
+
+    function _getRows($contracts, $output){
+
+        // recuperar usuarios y centros para armar el excel
+		$usuarios = $this->EventualContract->EventualContractBudget->User->getList();
+		$centros = $this->EventualContract->EventualContractBudget->Center->getList();
+		$statuses = $this->EventualContract->State->getList();
+        
+        // Get Invoices
+        $invoicesGroupByContractId = $this->EventualContract->Invoice->getBillAmount();
+        
+		$rows = array();
+        $evtPPSubTotal = $this->EventualContract->EventualContractBudget->getLiquidationTotalsByContracts();
+		foreach( $contracts as $contract){
+			$workTypeId = $contract['EventualContractBudget']['work_type_id'];
+			$jefeobraId = $contract['EventualContractBudget']['jefeobra_id'];
+
+			// ingresos presupuesto
+			$budgetIncome = $contract['EventualContractBudget']['income_pto'];
+            $billedIncome = $contract['EventualContract']['bill_amount'];
+            if($invoicesGroupByContractId[$contract['EventualContract']['id']] > 0) {
+                $billedIncome = $invoicesGroupByContractId[$contract['EventualContract']['id']];
+            }
+            
+			$totalCost = $contract['EventualContract']['cost']
+						+ $contract['EventualContract']['labor']
+						+ $contract['EventualContract']['fixedcost']
+						+ $contract['EventualContract']['othercost']
+                        + + (isset($evtPPSubTotal[$contract['EventualContract']['id']]) ? $evtPPSubTotal[$contract['EventualContract']['id']] : 0);
+
+
+			$grossAmount = $billedIncome - $totalCost;
+			$grossAmountPercentage = $billedIncome > 0 ? ($grossAmount * 100) / $billedIncome : 'N/A';
+
+			$amountBudgeted = $budgetIncome - $totalCost;
+			$amountBudgetedPercentage = $budgetIncome > 0 ? ($amountBudgeted * 100) / $budgetIncome : 'N/A';
+
+			$centro = (isset($centros[$contract['EventualContractBudget']['center_id']])) ? $centros[$contract['EventualContractBudget']['center_id']] : $contract['EventualContractBudget']['center_id'];
+			//$estadobudget = (isset($statuses[$contract['EventualContractBudget']['state_id']])) ? $statuses[$contract['EventualContractBudget']['state_id']] : $contract['EventualContractBudget']['state_id'];
+
+			$line = array(
+				$contract['EventualContractBudget']['est_work_date'],
+				$contract['State']['title'],
+				$centro, // centro
+				$contract['EventualContractBudget']['contract_number'],
+				$contract['EventualContractBudget']['title'],
+				$contract['EventualContractBudget']['location'], //$contract['City']['title'],
+				(isset($this->_work_types[$workTypeId])) ? $this->_work_types[$workTypeId] : '',
+				$budgetIncome, // Ingresos por presupuesto
+				$billedIncome, // Ingresos Facturados: total facturado Contrato Eventual ??
+				$contract['EventualContract']['cost'], // Costos Bs y serv.: costos reales Contrato Eventual ??
+				$contract['EventualContract']['labor'] + (isset($evtPPSubTotal[$contract['EventualContract']['id']]) ? $evtPPSubTotal[$contract['EventualContract']['id']] : 0),
+				$contract['EventualContract']['fixedcost'],
+				$contract['EventualContract']['othercost'],
+				$totalCost,
+				$grossAmount,
+				$grossAmountPercentage,
+				$amountBudgeted,
+				$amountBudgetedPercentage,
+				(isset($usuarios[$jefeobraId])) ? $usuarios[$jefeobraId] : '', // responsable
+			);
+			$line = $this->_formatLine($line, $output);
+			$rows[] = $line;
+        }
+        return $rows;
+    }
+
+
+	public function admin_reporte_obras(){
+
+        // Info completa de UO
+        $this->set('loadJQueryUI', true);
+        $this->set('loadChosenJS', true);        
+        $role = $this->Auth->user('role');
+        $authUserId = $this->Auth->user('id');
+        $authCenterId = $this->Auth->user('center_id');        
+        $this->loadModel('Center');
+        $this->loadModel('UsersCenter');
+        $this->loadModel('OperationUnit');
+        $this->loadModel('UsersOperationUnit');
+        $operarionUnitsInfo = $this->UsersOperationUnit->getOperationUnitsInfo(
+            $this->UsersCenter, $this->OperationUnit, $this->Center, $authUserId);
+
+        $userCenters = $operarionUnitsInfo['userCenters'];
+        $userAdm = $this->UsersOperationUnit->find('first', array('conditions' => array('role' => 10, 'operation_unit_id' => 1, 'user_id' => $authUserId)));
+
+        $this->set('userCenters', $userCenters);
+        $this->set('centersGT', $operarionUnitsInfo['centersGT']);
+        $this->set('centersTO', $operarionUnitsInfo['centersTO']);
+        $this->set('usersOperationUnit', $operarionUnitsInfo['usersOperationUnit']);
+        $this->set('operationCentersUnits', $operarionUnitsInfo['operationCentersUnits']);
+        $this->set('operationUnits', $operarionUnitsInfo['operationUnits']);
+        // Fin de Info de UO        
+
+        $this->EventualContract->Behaviors->load('Containable');
+
+        $this->set('title_for_layout', 'Contratos Eventuales');
+		
+		$this->set('_nav', "EventualContract");
+        $this->set('_nav_sub', "reports");
+        
+        // guardo todo en session
+        $this->postToSession($this->_sessionKey, 'reporte_obras');
+
+        $this->paginate = $this->_getOptions();
+        
+        if($this->Session->read('Auth.User.role') == 60) {
+            $this->paginate['conditions'][] = array('EventualContractBudget.jefeobra_id =' . $this->Session->read('Auth.User.id'));
+            $this->request->data['EventualContract']['jefeobra_id'] = $this->Session->read('Auth.User.id');
+        }
+
+        // unidades operativas
+        $operation_unit_id = isset($this->paginate['conditions']['EventualContractBudget.operation_unit_id']) ? $this->paginate['conditions']['EventualContractBudget.operation_unit_id'] : null;
+        if(!empty($operation_unit_id) && count($operation_unit_id) > 0){
+            $centers = $this->Center->find('list', array('conditions' => array('Center.operation_unit_id' => $operation_unit_id)));
+            unset($this->paginate['conditions']['EventualContractBudget.operation_unit_id']);
+            $this->paginate['conditions'][] = array('EventualContractBudget.center_id' => array_keys($centers));
+        }
+
+        $this->paginate['order'] = ['EventualContractBudget.est_work_date' => 'DESC'];
+
+        $contracts = $this->paginate('EventualContract');
+
+        $this->set('colNames', $this->_getColNames());
+        $this->set('rows', $this->_getRows($contracts, 'screen'));
+        $this->set('model', $this->modelClass);
+
+        $this->_viewVars();
+    }
+
+
+
+	public function admin_reporte_obras_csv(){
+        
+		$this->autoRender = false;
+		set_time_limit(0);
+
+		$colNames = array_keys($this->_getColNames());
+		$options = $this->_getOptions();
+
+        if(isset($options['conditions']['EventualContractBudget.operation_unit_id']) && count($options['conditions']['EventualContractBudget.operation_unit_id']) > 0) {
+            $this->loadModel('Center');
+            $centers = $this->Center->find('list', array('conditions' => array('Center.operation_unit_id' => $options['conditions']['EventualContractBudget.operation_unit_id'])));
+            unset($options['conditions']['EventualContractBudget.operation_unit_id']);
+            $options['conditions']['EventualContractBudget.center_id'] = array_keys($centers);
+        }
+
+		$contracts = $this->EventualContract->find('all', $options);
+        
+        // Get users
+		$this->loadModel('Person');
+        $users = $this->Person->find('list', array('fields' => array('Person.id', 'Person.full_name')));        
+        $rows = $this->_getRows($contracts, 'csv', $users);
+        
+        App::import('Vendor', 'PHPExcel', array('file' => 'PHPExcel' . DS . 'Classes' . DS . 'PHPExcel.php'));
+        $spreadsheet = new PHPExcel();
+        $spreadsheet->getProperties()->setCreator('Emsetec Facility Management')
+                ->setLastModifiedBy($this->Auth->user('first_name'))
+                ->setTitle('Reportes')
+                ->setSubject('Reportes')
+                ->setDescription('Reporte de Obras y Eventuales')
+                ->setKeywords('reportes obras eventuales')
+                ->setCategory('Reportes');
+        
+        // Set Columns Names
+        $rowNumber = 1;
+        $spreadsheet->setActiveSheetIndex(0)
+                ->setCellValue('A' . $rowNumber, $colNames[0])
+                ->setCellValue('B' . $rowNumber, $colNames[1])
+                ->setCellValue('C' . $rowNumber, $colNames[2])
+                ->setCellValue('D' . $rowNumber, $colNames[3])
+                ->setCellValue('E' . $rowNumber, $colNames[4])
+                ->setCellValue('F' . $rowNumber, $colNames[5])
+                ->setCellValue('G' . $rowNumber, $colNames[6])
+                ->setCellValue('H' . $rowNumber, $colNames[7])
+                ->setCellValue('I' . $rowNumber, $colNames[8])
+                ->setCellValue('J' . $rowNumber, $colNames[9])
+                ->setCellValue('K' . $rowNumber, $colNames[10])
+                ->setCellValue('L' . $rowNumber, $colNames[11])
+                ->setCellValue('M' . $rowNumber, $colNames[12])
+                ->setCellValue('N' . $rowNumber, $colNames[13])
+                ->setCellValue('O' . $rowNumber, $colNames[14])
+                ->setCellValue('P' . $rowNumber, $colNames[15])
+                ->setCellValue('Q' . $rowNumber, $colNames[16])
+                ->setCellValue('R' . $rowNumber, $colNames[17])
+                ->setCellValue('S' . $rowNumber, $colNames[18]);        
+
+        foreach($rows as $row) {
+            $rowNumber++;
+            $spreadsheet->setActiveSheetIndex(0)
+                    ->setCellValue('A' . $rowNumber, $row[0])
+                    ->setCellValue('B' . $rowNumber, $row[1])
+                    ->setCellValue('C' . $rowNumber, $row[2])
+                    ->setCellValue('D' . $rowNumber, $row[3])
+                    ->setCellValue('E' . $rowNumber, $row[4])
+                    ->setCellValue('F' . $rowNumber, $row[5])
+                    ->setCellValue('G' . $rowNumber, $row[6])
+                    ->setCellValue('H' . $rowNumber, $row[7])
+                    ->setCellValue('I' . $rowNumber, $row[8])
+                    ->setCellValue('J' . $rowNumber, $row[9])
+                    ->setCellValue('K' . $rowNumber, $row[10])
+                    ->setCellValue('L' . $rowNumber, $row[11])
+                    ->setCellValue('M' . $rowNumber, $row[12])
+                    ->setCellValue('N' . $rowNumber, $row[13])
+                    ->setCellValue('O' . $rowNumber, $row[14])
+                    ->setCellValue('P' . $rowNumber, $row[15])
+                    ->setCellValue('Q' . $rowNumber, $row[16])
+                    ->setCellValue('R' . $rowNumber, $row[17])
+                    ->setCellValue('S' . $rowNumber, $row[18]);
+           
+            // Set Number Format
+            $spreadsheet->getActiveSheet()->getStyle('I' . $rowNumber . ':R' . $rowNumber)->getNumberFormat()->setFormatCode('#,##0.00');
+        }
+
+        // Rename worksheet
+        $spreadsheet->getActiveSheet()->setTitle('Reporte de Obras y Eventuales');
+        // Set active sheet index to the first sheet, so Excel opens this as the first sheet
+        $spreadsheet->setActiveSheetIndex(0);
+        // Set text style
+        $spreadsheet->getActiveSheet()->getStyle('A1:S1')->getFont()->setBold( true );
+        // Redirect output to a client’s web browser (Xls)
+        header('Content-Type: application/vnd.ms-excel');
+        header('Content-Disposition: attachment;filename="Reporte-de-Obras-y-Eventuales.xls"');
+        header('Cache-Control: max-age=0');
+        // If you're serving to IE 9, then the following may be needed
+        header('Cache-Control: max-age=1');
+        // If you're serving to IE over SSL, then the following may be needed
+        header('Expires: Mon, 26 Jul 1997 05:00:00 GMT'); // Date in the past
+        header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT'); // always modified
+        header('Cache-Control: cache, must-revalidate'); // HTTP/1.1
+        header('Pragma: public'); // HTTP/1.0
+        $writer = PHPExcel_IOFactory::createWriter($spreadsheet, 'Excel5');
+        $writer->save('php://output');
+        exit;
+    }
+
+	
+	
+    public function admin_getEventualContractList() {
+        $options = '';
+        $opUnitId = $this->request->data['operationUnitId'];
+
+        if(!empty($opUnitId) && count($opUnitId) > 0) {
+            $this->loadModel('Center');
+            $centers = $this->Center->find('list', array('conditions' => array('Center.operation_unit_id' => $opUnitId)));
+            $eventualContracts = $this->EventualContract->EventualContractBudget->find('all', array(
+                'fields' => array('EventualContractBudget.id', 'EventualContractBudget.full_contract'),
+                'conditions' => array('EventualContractBudget.center_id' => array_keys($centers)),
+                'order' => array('EventualContractBudget.full_contract')
+            ));
+
+            $options = '';
+            if($eventualContracts) {
+                natsort($eventualContracts);
+                foreach($eventualContracts as $evtc) {
+                    if(empty($evtc['EventualContractBudget']['full_contract'])) continue;
+                    $options .= '<option value="'.$evtc['EventualContractBudget']['id'].'">'.$evtc['EventualContractBudget']['full_contract'].'</option>';
+                }
+            }
+
+        }
+
+        die($options);
+    }	
+}

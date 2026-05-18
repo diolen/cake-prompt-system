@@ -10,9 +10,9 @@ use Exception;
 class PromptGenerator
 {
     /**
-     * Генерирует готовый промпт на основе анализа и типа задачи
+     * Генерирует готовый промпт на основе анализа, типа задачи и кастомного ТЗ
      */
-    public function generate(array $analysisResult, string $taskType): string
+    public function generate(array $analysisResult, string $taskType, string $customInstruction = ''): string
     {
         switch (strtoupper($taskType)) {
             case 'REFACTOR':
@@ -22,12 +22,13 @@ class PromptGenerator
                 $template = new FeatureTemplate($analysisResult);
                 break;
             case 'DEBUG':
-                $template = new DebugTemplate($analysisResult); // НОВОЕ!
+                $template = new DebugTemplate($analysisResult);
                 break;
             default:
                 throw new Exception("Неизвестный тип задачи: {$taskType}");
         }
 
-        return $template->compile();
+        // Пробрасываем инструкцию пользователя в базовый компилятор шаблона
+        return $template->compile($customInstruction);
     }
 }
