@@ -12,11 +12,11 @@ class CakeAnalyzer
     private string $code;
     private ProjectIndexer $indexer;
 
-    // В конструктор теперь обязательно передаем ProjectIndexer
+    // ProjectIndexer is now required in constructor
     public function __construct(string $filePath, ProjectIndexer $indexer)
     {
         if (!file_exists($filePath)) {
-            throw new Exception("Файл не найден для анализа: {$filePath}");
+            throw new Exception("File not found for analysis: {$filePath}");
         }
 
         $this->filePath = $filePath;
@@ -30,14 +30,14 @@ class CakeAnalyzer
         $version = $this->detectCakeVersion($layer);
         $className = basename($this->filePath, '.php');
 
-        // По умолчанию связи пустые
+        // By default, relationships are empty
         $models = [];
         $components = [];
         $associations = [];
 
-        // Запускаем AST-парсер для CakePHP v2
+        // Run AST parser for CakePHP v2
         if ($version === 'v2' && ($layer === 'Controller' || $layer === 'Model')) {
-            // Используем фабрику для создания парсера под текущую версию php-parser
+            // Use factory to create parser for current php-parser version
             $parser = (new ParserFactory())->createForNewestSupportedVersion();
             
             try {
@@ -45,7 +45,7 @@ class CakeAnalyzer
                 $traverser = new NodeTraverser();
 
                 if ($layer === 'Controller') {
-                    // Извлекаем свойства контроллера ($uses, $components, loadModel)
+                    // Extract controller properties ($uses, $components, loadModel)
                     $extractor = new CakeV2PropertyExtractor();
                     $traverser->addVisitor($extractor);
                     $traverser->traverse($ast);
@@ -54,7 +54,7 @@ class CakeAnalyzer
                     $components = $extractor->getComponents();
 
                 } elseif ($layer === 'Model') {
-                    // ГЛУБОКИЙ АНАЛИЗ МОДЕЛЕЙ: Извлекаем связи БД ($belongsTo, $hasMany и т.д.)
+                    // DEEP MODEL ANALYSIS: Extract DB relationships ($belongsTo, $hasMany, etc.)
                     $modelExtractor = new CakeV2ModelExtractor();
                     $traverser->addVisitor($modelExtractor);
                     $traverser->traverse($ast);
@@ -63,16 +63,16 @@ class CakeAnalyzer
                 }
                 
             } catch (\Throwable $e) {
-                // Игнорируем синтаксические ошибки легаси-файлов, возвращая пустые структуры
+                // Ignore syntax errors in legacy files, returning empty structures
             }
         }
 
-        // Расчет метрики Connectivity (Связность / Исходящие связи)
+        // Calculate Connectivity metric (Connectivity / Outgoing relationships)
         $connectivity = ($layer === 'Controller') 
             ? count($models) + count($components) 
             : $this->countAssociations($associations);
 
-        // Получаем метрики влияния из глобального индексатора (Входящие связи)
+        // Get influence metrics from global indexer (Incoming relationships)
         $influenceScore = $this->indexer->getInfluenceScore($className);
         $impactedBy = $this->indexer->getDependentComponents($className);
 
@@ -89,19 +89,19 @@ class CakeAnalyzer
             ],
             'metrics' => [
                 'connectivity' => $connectivity,
-                'influence_score' => $influenceScore // Теперь рассчитывается динамически!
+                'influence_score' => $influenceScore // Now calculated dynamically!
             ],
             'relations' => [
                 'models' => $models,
                 'components' => $components,
                 'associations' => $associations
             ],
-            'impacted_by' => $impactedBy // Добавляем список файлов, которые зависят от текущего
+            'impacted_by' => $impactedBy // Add list of files that depend on current one
         ];
     }
 
     /**
-     * Определяет архитектурный слой (Controller или Model)
+     * Determines architectural layer (Controller or Model)
      */
     private function detectLayer(): string
     {
@@ -119,7 +119,7 @@ class CakeAnalyzer
             return 'Model';
         }
 
-        // РЕЗЕРВНЫЙ ВАРИАНТ: Анализ содержимого файла
+        // FALLBACK OPTION: Analyze file contents
         if (preg_match('/class\s+\w+\s+extends\s+(AppModel|Model)/i', $this->code)) {
             return 'Model';
         }
@@ -128,7 +128,7 @@ class CakeAnalyzer
     }
 
     /**
-     * Определяет версию CakePHP (v2, v3, v4)
+     * Determines CakePHP version (v2, v3, v4)
      */
     private function detectCakeVersion(string $layer): string
     {
@@ -140,7 +140,7 @@ class CakeAnalyzer
     }
 
     /**
-     * Хелпер для подсчета общего количества ассоциаций модели
+     * Helper for counting total model associations
      */
     private function countAssociations(array $associations): int
     {

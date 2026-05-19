@@ -10,120 +10,120 @@ use App\Generator\PromptGenerator;
 
 echo "=== CakePrompt Engineering System v1.0 ===\n\n";
 
-// Переменные для хранения флагов и позиционных аргументов
+// Variables for storing flags and positional arguments
 $positionalArgs = [];
 $customInstruction = '';
 
-// Парсим аргументы командной строки (пропускаем $argv[0] — имя скрипта)
+// Parse command line arguments (skip $argv[0] — script name)
 for ($i = 1; $i < $argc; $i++) {
     $arg = $argv[$i];
     
     if (strpos($arg, '--instruction=') === 0) {
-        // Вырезаем значение из флага --instruction="текст"
+        // Extract value from --instruction="text" flag
         $customInstruction = substr($arg, 14);
     } else {
-        // Собираем стандартные позиционные аргументы
+        // Collect standard positional arguments
         $positionalArgs[] = $arg;
     }
 }
 
-// Проверяем наличие обязательных позиционных параметров (путь и тип задачи)
+// Check for required positional parameters (path and task type)
 if (count($positionalArgs) < 2) {
-    echo "Использование:\n";
-    echo "  docker-compose run --rm analyzer php app.php [путь_к_файлу] [тип_задачи] [--instruction=\"Ваше ТЗ\"]\n\n";
-    echo "Примеры:\n";
+    echo "Usage:\n";
+    echo "  docker-compose run --rm analyzer php app.php [file_path] [task_type] [--instruction=\"Your instruction\"]\n\n";
+    echo "Examples:\n";
     echo "  docker-compose run --rm analyzer php app.php docs/UsersController.php REFACTOR\n";
-    echo "  docker-compose run --rm analyzer php app.php docs/UsersController.php REFACTOR --instruction=\"Вынеси ID в конфиг\"\n";
+    echo "  docker-compose run --rm analyzer php app.php docs/UsersController.php REFACTOR --instruction=\"Move ID to config\"\n";
     exit(1);
 }
 
 $filePath = $positionalArgs[0];
 $taskType = strtoupper($positionalArgs[1]);
 
-// Валидация типа задачи
+// Task type validation
 $allowedTypes = ['FEATURE', 'REFACTOR', 'DEBUG'];
 if (!in_array($taskType, $allowedTypes)) {
-    echo "❌ Ошибка: Неверный тип задачи. Допустимы: " . implode(', ', $allowedTypes) . "\n";
+    echo "❌ Error: Invalid task type. Allowed: " . implode(', ', $allowedTypes) . "\n";
     exit(1);
 }
 
-// Проверяем физическое существование файла перед запуском тяжелых процессов
+// Check physical file existence before running heavy processes
 if (!file_exists($filePath)) {
-    echo "❌ Ошибка: Файл не найден по пути: $filePath\n";
+    echo "❌ Error: File not found at path: $filePath\n";
     exit(1);
 }
 
-echo "🎯 Файл для анализа: $filePath\n";
-echo "📋 Тип задачи: $taskType\n";
+echo "🎯 File for analysis: $filePath\n";
+echo "📋 Task type: $taskType\n";
 if (!empty($customInstruction)) {
-    echo "📝 Кастомное ТЗ: \"$customInstruction\"\n";
+    echo "📝 Custom instruction: \"$customInstruction\"\n";
 }
 echo "\n";
 
 try {
-    // 1. Индексация проекта для расчета Influence Score
-    echo "⚙️  Инициализация глобального индексатора...\n";
+    // 1. Project indexing for Influence Score calculation
+    echo "⚙️  Initializing global indexer...\n";
     $extractor = new CakeV2PropertyExtractor();
     $indexer = new ProjectIndexer($extractor);
     $projectRoot = dirname($filePath, 2);
     
-    echo "📂 Корень проекта определен как: $projectRoot\n";
-    echo "⏳ Сканирование проекта и расчет Influence Score... ";
+    echo "📂 Project root determined as: $projectRoot\n";
+    echo "⏳ Scanning project and calculating Influence Score... ";
     $indexer->indexProject($projectRoot);
-    echo "Готово!\n\n";
+    echo "Done!\n\n";
 
-    // 2. Детальный статический анализ целевого файла
-    echo "⏳ Запуск детального анализа файла...\n";
+    // 2. Detailed static analysis of target file
+    echo "⏳ Running detailed file analysis...\n";
     $analyzer = new CakeAnalyzer($filePath, $indexer);
     $analysisResult = $analyzer->analyze();
 
-    // 3. Жесткая валидация контракта данных по JSON-схеме
-    echo "🛡️  Валидация структуры данных по JSON-схеме... ";
+    // 3. Strict data contract validation against JSON schema
+    echo "🛡️  Validating data structure against JSON schema... ";
     $schemaPath = __DIR__ . '/src/Shared/analysis-schema.json';
     $validator = new JsonSchemaValidator($schemaPath);
     $validator->validate($analysisResult);
-    echo "Успешно!\n\n";
+    echo "Success!\n\n";
 
-    // 4. Генерация финального промпта для LLM (передаем кастомную инструкцию)
-    echo "🧠 Формирование оптимизированного промпта для LLM... ";
+    // 4. Final prompt generation for LLM (pass custom instruction)
+    echo "🧠 Formulating optimized prompt for LLM... ";
     $generator = new PromptGenerator();
     $compiledPrompt = $generator->generate($analysisResult, $taskType, $customInstruction);
-    echo "Готово!\n\n";
+    echo "Done!\n\n";
     
     // =========================================================================
-    // НАСТРОЙКА ВЫДЕЛЕННОГО ХРАНИЛИЩА ПРОМПТОВ
+    // DEDICATED PROMPT STORAGE CONFIGURATION
     // =========================================================================
     $baseOutputDir = __DIR__ . '/.prompt_output';
     
-    // Очищаем путь к анализируемому файлу от лишних слэшей в начале для склейки
+    // Remove leading slashes from analyzed file path for concatenation
     $relativeLogPath = ltrim($filePath, '/'); 
     
-    // Формируем целевую папку: .prompt_output/sic/app/Controller/SicsController.php/
+    // Form target folder: .prompt_output/sic/app/Controller/SicsController.php/
     $targetFolder = $baseOutputDir . '/' . $relativeLogPath;
     
-    // Автоматически создаем рекурсивную структуру папок, если её еще нет
+    // Automatically create recursive folder structure if it doesn't exist
     if (!is_dir($targetFolder)) {
         mkdir($targetFolder, 0775, true);
     }
     
-    // Имя файла: refactor.prompt.txt
+    // File name: refactor.prompt.txt
     $promptFileName = strtolower($taskType) . '.prompt.txt';
     $finalPromptPath = $targetFolder . '/' . $promptFileName;
     
-    // Запись промпта на диск
+    // Write prompt to disk
     if (file_put_contents($finalPromptPath, $compiledPrompt) !== false) {
-        echo "💾 [УСПЕХ] Промпт успешно сгенерирован и изолирован!\n";
-        echo "👉 Абсолютный путь: {$finalPromptPath}\n";
-        echo "📂 Папка в контейнере: /.prompt_output/{$relativeLogPath}/\n\n";
+        echo "💾 [SUCCESS] Prompt successfully generated and isolated!\n";
+        echo "👉 Absolute path: {$finalPromptPath}\n";
+        echo "📂 Folder in container: /.prompt_output/{$relativeLogPath}/\n\n";
     } else {
-        echo "❌ [ОШИБКА] Не удалось записать скомпилированный промпт на диск.\n\n";
+        echo "❌ [ERROR] Failed to write compiled prompt to disk.\n\n";
     }
     
-    echo "✅ Работа системы успешно завершена!\n";
+    echo "✅ System work successfully completed!\n";
     exit(0);
 
 } catch (Exception $e) {
-    echo "❌ Произошла ошибка во время работы системы:\n";
+    echo "❌ An error occurred during system operation:\n";
     echo $e->getMessage() . "\n";
     exit(1);
 }

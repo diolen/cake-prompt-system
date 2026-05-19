@@ -15,16 +15,16 @@ class FeatureTemplate extends AbstractPromptTemplate
         $warningNotice = '';
         if ($influence > 0) {
             $componentsList = implode(', ', $impactedBy);
-            $warningNotice = "⚠️ ВНИМАНИЕ: Изменения вносятся в компонент с высоким Influence Score ($influence). От него зависят: $componentsList. Реализуйте новые методы так, чтобы полностью исключить сайд-эффекты для зависимых классов. При необходимости используйте опциональные аргументы со значениями по умолчанию.\n";
+            $warningNotice = "⚠️ WARNING: Changes are being made to a component with high Influence Score ($influence). The following depend on it: $componentsList. Implement new methods to completely eliminate side effects for dependent classes. Use optional arguments with default values when necessary.\n";
         }
 
         return <<<INSTRUCTION
-Разработайте и внедрите новую фичу (новые методы/логику) в целевой файл.
+Develop and implement a new feature (new methods/logic) in the target file.
 $warningNotice
-Правила реализации фичи в CakePHP v2:
-1. Архитектурное разделение: Соблюдайте парадигму "Fat Model, Skinny Controller". Вся бизнес-логика, манипуляции с данными и валидация должны находиться в Модели. Контроллер должен лишь координировать поток данных.
-2. Работа с БД: Запрещено писать сырые SQL-запросы в контроллерах. Используйте методыORM CakePHP (\$this->Model->find(), \$this->Model->save() и т.д.).
-3. Использование связей: Обратите внимание на доступныеRelations в контексте (массивы models, components, associations). Используйте их для вызова методов смежных сущностей вместо дублирования кода.
+Feature implementation rules in CakePHP v2:
+1. Architectural Separation: Follow the "Fat Model, Skinny Controller" paradigm. All business logic, data manipulation, and validation should be in the Model. The Controller should only coordinate data flow.
+2. Database Operations: Writing raw SQL queries in controllers is prohibited. Use CakePHP ORM methods (\$this->Model->find(), \$this->Model->save(), etc.).
+3. Using Relationships: Pay attention to available Relations in context (models, components, associations arrays). Use them to call methods on related entities instead of duplicating code.
 INSTRUCTION;
     }
 }

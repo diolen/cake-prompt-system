@@ -5,9 +5,9 @@ services:
     build: .
     container_name: cake_analyzer
     volumes:
-      # Ваша текущая папка с системой промптов
+      # Your current folder with the prompt system
       - .:/app
-      # МОНТИРУЕМ РЕАЛЬНЫЙ ПРОЕКТ:
-      # Внутри контейнера он будет доступен по пути /projects/sic
+      # MOUNT THE REAL PROJECT:
+      # Inside the container it will be available at path /projects/sic
       - ../sic:/sic
     working_dir: /app

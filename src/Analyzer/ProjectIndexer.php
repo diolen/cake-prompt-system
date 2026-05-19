@@ -14,7 +14,7 @@ class ProjectIndexer
 
     public function __construct(CakeV2PropertyExtractor $extractor)
     {
-        // Создаем парсер, совместимый с PHP 5.6 и выше
+        // Create parser compatible with PHP 5.6 and above
         $this->parser = (new ParserFactory())->createForNewestSupportedVersion();
         $this->extractor = $extractor;
         
@@ -23,7 +23,7 @@ class ProjectIndexer
     }
 
 /**
-     * Сканирует директорию проекта и строит граф входящих связей
+     * Scans project directory and builds incoming relationship graph
      */
     public function indexProject(string $projectPath): void
     {
@@ -35,14 +35,14 @@ class ProjectIndexer
         $iterator = new \RecursiveIteratorIterator($directory);
 
         foreach ($iterator as $fileInfo) {
-            // 1. Проверяем, что это файл, а не ссылка/директория, и у него расширение .php
+            // 1. Check that it's a file, not symlink/directory, and has .php extension
             if (!$fileInfo->isFile() || strtolower($fileInfo->getExtension()) !== 'php') {
                 continue;
             }
 
             $filePath = $fileInfo->getRealPath();
 
-            // 2. Игнорируем папку vendor и скрытые директории вроде .git
+            // 2. Ignore vendor folder and hidden directories like .git
             if (str_contains($filePath, '/vendor/') || str_contains($filePath, '/.')) {
                 continue;
             }
@@ -54,11 +54,11 @@ class ProjectIndexer
                     continue;
                 }
 
-                // Очищаем экстрактор перед обходом нового файла
+                // Clear extractor before traversing new file
                 $this->extractor->clear();
                 $this->traverser->traverse($ast);
 
-                // Получаем все зависимости текущего файла
+                // Get all dependencies of current file
                 $dependencies = $this->extractor->extractDependencies();
                 $className = $this->deriveClassName($filePath);
 
@@ -75,14 +75,14 @@ class ProjectIndexer
                     }
                 }
             } catch (\Throwable $e) {
-                // Игнорируем битые файлы, чтобы не прерывать общий индекс
+                // Ignore broken files to not interrupt overall index
                 continue;
             }
         }
     }
 
     /**
-     * Возвращает Influence Score для конкретного класса (модели/компонента)
+     * Returns Influence Score for specific class (model/component)
      */
     public function getInfluenceScore(string $className): int
     {
@@ -91,7 +91,7 @@ class ProjectIndexer
     }
 
     /**
-     * Возвращает список компонентов, которые зависят от данного класса
+     * Returns list of components that depend on this class
      */
     public function getDependentComponents(string $className): array
     {
@@ -100,7 +100,7 @@ class ProjectIndexer
     }
 
     /**
-     * Вытаскивает имя класса из пути (в CakePHP v2 имя файла == имя класса)
+     * Extracts class name from path (in CakePHP v2 file name == class name)
      */
     private function deriveClassName(string $filePath): ?string
     {
@@ -108,8 +108,8 @@ class ProjectIndexer
     }
 
     /**
-     * Хелпер для очистки суффиксов, если мы запрашиваем модель по имени файла контроллера
-     * (например, для UsersController нам нужно искать связи сущности 'Users' или 'User')
+     * Helper for cleaning suffixes if we request model by controller file name
+     * (e.g., for UsersController we need to search for entity 'Users' or 'User' relationships)
      */
     private function sanitizeClassName(string $className): string
     {

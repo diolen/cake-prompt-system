@@ -12,45 +12,45 @@ abstract class AbstractPromptTemplate
     }
 
     /**
-     * Каждая задача должна реализовать свою специфичную инструкцию
+     * Each task must implement its specific instruction
      */
     abstract public function getTaskInstruction(): string;
 
     /**
-     * Генерирует финальный системный промпт с учетом кастомных требований
+     * Generates final system prompt considering custom requirements
      */
     public function compile(string $customInstruction = ''): string
     {
-        // Подгружаем внешний текстовый макет
+        // Load external text template
         $templatePath = __DIR__ . '/Templates/base_layout.txt';
         
         if (!file_exists($templatePath)) {
-            // Резервный путь, если файл положили в корень Generator
+            // Fallback path if file was placed in Generator root
             $templatePath = __DIR__ . '/base_layout.txt';
         }
 
         if (!file_exists($templatePath)) {
-            return "// [Ошибка системы] Не найден файл шаблона: " . $templatePath;
+            return "// [System Error] Template file not found: " . $templatePath;
         }
 
         $template = file_get_contents($templatePath);
 
-        // Извлекаем исходный код целевого файла
+        // Extract source code of target file
         $sourceCode = $this->extractSourceCode();
 
-        // Формируем базовую инструкцию из стратегии подтипа задачи
+        // Form base instruction from task subtype strategy
         $taskInstruction = $this->getTaskInstruction();
 
-        // Если переданы кастомные требования из консоли — внедряем их в блок инструкции
+        // If custom requirements passed from console — inject them into instruction block
         if (!empty($customInstruction)) {
-            $taskInstruction .= "\n\n### ⚡ КРИТИЧЕСКИЕ ДОПОЛНИТЕЛЬНЫЕ ТРЕБОВАНИЯ ПОЛЬЗОВАТЕЛЯ:\n";
-            $taskInstruction .= "При генерации кода вы обязаны беспрекословно учесть следующие точечные инструкции:\n";
+            $taskInstruction .= "\n\n### ⚡ CRITICAL ADDITIONAL USER REQUIREMENTS:\n";
+            $taskInstruction .= "When generating code you must unconditionally follow these specific instructions:\n";
             $taskInstruction .= "> " . trim($customInstruction) . "\n";
         }
 
-        // Формируем карту замен. Передавая массивы в str_replace, 
-        // мы гарантируем, что PHP выполнит подстановку за один проход.
-        // Это предотвращает рекурсивные и бесконечные замены, если маркеры встретятся внутри кода.
+        // Form replacement map. By passing arrays to str_replace,
+        // we guarantee PHP performs substitution in one pass.
+        // This prevents recursive and infinite replacements if markers appear inside code.
         $replacements = array(
             '[[CONTEXT_JSON]]'      => $this->renderContextJSON(),
             '[[TASK_INSTRUCTION]]' => $taskInstruction,
@@ -65,29 +65,29 @@ abstract class AbstractPromptTemplate
     }
 
     /**
-     * Автоматически считывает исходный код анализируемого файла
+     * Automatically reads source code of analyzed file
      */
     private function extractSourceCode(): string
     {
         $filePath = $this->analysisResult['task_context']['file_path'] ?? null;
 
         if (!$filePath) {
-            return '// [Ошибка системы] Путь к файлу не найден в метаконтексте анализа.';
+            return '// [System Error] File path not found in analysis metacontext.';
         }
 
         if (!file_exists($filePath)) {
-            return "// [Ошибка системы] Файл не найден по пути: {$filePath}";
+            return "// [System Error] File not found at path: {$filePath}";
         }
 
         if (!is_readable($filePath)) {
-            return "// [Ошибка системы] Файл найден, но недоступен для чтения: {$filePath}";
+            return "// [System Error] File found but not readable: {$filePath}";
         }
 
         return file_get_contents($filePath);
     }
 
     /**
-     * Красиво форматирует JSON для вставки в промпт
+     * Beautifully formats JSON for insertion into prompt
      */
     private function renderContextJSON(): string
     {

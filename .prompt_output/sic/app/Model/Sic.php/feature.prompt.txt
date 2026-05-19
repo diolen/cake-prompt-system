@@ -1,18 +1,18 @@
-# СИСТЕМНЫЕ ОГРАНИЧЕНИЯ ОКРУЖЕНИЯ (КРИТИЧЕСКИ ВАЖНО)
-Вы — эксперт по legacy-разработке на PHP и фреймворку CakePHP v2.x.
-Весь предоставляемый вами код ДОЛЖЕН строго соответствовать стандартам **PHP 5.6**.
+# SYSTEM ENVIRONMENT CONSTRAINTS (CRITICALLY IMPORTANT)
+You are an expert in legacy PHP development and the CakePHP v2.x framework.
+All code you provide MUST strictly follow **PHP 5.6** standards.
 
-## Жесткие синтаксические запреты PHP 5.6:
-1. ЗАПРЕЩЕНО использовать короткий синтаксис массивов `[]`. Используйте только `array()`.
-2. ЗАПРЕЩЕН Null Coalescing оператор `??`. Используйте `isset($var) ? $var : $default`.
-3. ЗАПРЕЩЕНЫ стрелочные функции `fn() =>`. Используйте `function() use () {}`.
-4. ЗАПРЕЩЕНЫ typed properties (модификаторы типов свойств класса, например: private $name;). Пишите просто private $name;.
-5. ЗАПРЕЩЕНЫ return types и argument types для скалярных типов (string, int, bool) в сигнатурах методов.
+## Strict PHP 5.6 syntax prohibitions:
+1. FORBIDDEN to use short array syntax `[]`. Use only `array()`.
+2. FORBIDDEN Null Coalescing operator `??`. Use `isset($var) ? $var : $default`.
+3. FORBIDDEN arrow functions `fn() =>`. Use `function() use () {}`.
+4. FORBIDDEN typed properties (class property type modifiers, e.g.: private $name;). Just write private $name;.
+5. FORBIDDEN return types and argument types for scalar types (string, int, bool) in method signatures.
 
 ---
 
-# КОНТЕКСТ АНАЛИЗИРУЕМОГО КОМПОНЕНТА
-Ниже приведены данные статического анализа файла, который необходимо обработать:
+# ANALYZED COMPONENT CONTEXT
+Below are the static analysis data of the file that needs to be processed:
 {
     "system_meta": {
         "framework": "CakePHP",
@@ -125,20 +125,25 @@
 
 ---
 
-# ИНСТРУКЦИЯ К ВЫПОЛНЕНИЮ ЗАДАЧИ
-Разработайте и внедрите новую фичу (новые методы/логику) в целевой файл.
-⚠️ ВНИМАНИЕ: Изменения вносятся в компонент с высоким Influence Score (14). От него зависят: ReportsController, InvoicesOcController, ReportsmeController, RatingSuppliersController, SicsStatusesLog, RatingSupplier, EventualContract, SicsMovement, Contract, AppffSurrender, AlertShell, VehicleShell, RatingSuppliesUpdateShell, CopernicoShell. Реализуйте новые методы так, чтобы полностью исключить сайд-эффекты для зависимых классов. При необходимости используйте опциональные аргументы со значениями по умолчанию.
+# TASK EXECUTION INSTRUCTION
+Develop and implement a new feature (new methods/logic) in the target file.
+⚠️ WARNING: Changes are being made to a component with high Influence Score (14). The following depend on it: ReportsController, InvoicesOcController, ReportsmeController, RatingSuppliersController, SicsStatusesLog, RatingSupplier, EventualContract, SicsMovement, Contract, AppffSurrender, AlertShell, VehicleShell, RatingSuppliesUpdateShell, CopernicoShell. Implement new methods to completely eliminate side effects for dependent classes. Use optional arguments with default values when necessary.
 
-Правила реализации фичи в CakePHP v2:
-1. Архитектурное разделение: Соблюдайте парадигму "Fat Model, Skinny Controller". Вся бизнес-логика, манипуляции с данными и валидация должны находиться в Модели. Контроллер должен лишь координировать поток данных.
-2. Работа с БД: Запрещено писать сырые SQL-запросы в контроллерах. Используйте методыORM CakePHP ($this->Model->find(), $this->Model->save() и т.д.).
-3. Использование связей: Обратите внимание на доступныеRelations в контексте (массивы models, components, associations). Используйте их для вызова методов смежных сущностей вместо дублирования кода.
+Feature implementation rules in CakePHP v2:
+1. Architectural Separation: Follow the "Fat Model, Skinny Controller" paradigm. All business logic, data manipulation, and validation should be in the Model. The Controller should only coordinate data flow.
+2. Database Operations: Writing raw SQL queries in controllers is prohibited. Use CakePHP ORM methods ($this->Model->find(), $this->Model->save(), etc.).
+3. Using Relationships: Pay attention to available Relations in context (models, components, associations arrays). Use them to call methods on related entities instead of duplicating code.
+
+### ⚡ CRITICAL ADDITIONAL USER REQUIREMENTS:
+When generating code you must unconditionally follow these specific instructions:
+> Test instruction parameter TEST
+
 
 ---
 
-# ИСХОДНЫЙ КОД ЦЕЛЕВОГО ФАЙЛА
-Ниже представлен оригинальный код компонента, который требует обработки. 
-Изучите его структуру, методы и зависимости перед началом работы:
+# TARGET FILE SOURCE CODE
+Below is the original code of the component that requires processing.
+Study its structure, methods, and dependencies before starting work:
 
 ```php
 <?php

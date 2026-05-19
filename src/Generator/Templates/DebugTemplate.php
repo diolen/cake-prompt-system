@@ -15,16 +15,16 @@ class DebugTemplate extends AbstractPromptTemplate
         $warningNotice = '';
         if ($influence > 0) {
             $componentsList = implode(', ', $impactedBy);
-            $warningNotice = "⚠️ ВНИМАНИЕ: Вы исправляете баг в высоконагруженном по связям компоненте ($influence). Изменения затронут или могут сломать: $componentsList. Исправление багов не должно менять сигнатуры методов или возвращаемые типы данных, если это жестко не требуется для устранения дефекта.\n";
+            $warningNotice = "⚠️ WARNING: You are fixing a bug in a highly connected component ($influence). Changes will affect or may break: $componentsList. Bug fixes should not change method signatures or return data types unless strictly required to fix the defect.\n";
         }
 
         return <<<INSTRUCTION
-Найдите и устраните баг или уязвимость в целевом файле.
+Find and fix a bug or vulnerability in the target file.
 $warningNotice
-Правила отладки и исправления ошибок:
-1. Защита от Null: В PHP 5.6 нет Nullsafe-оператора (?->). Обязательно добавляйте явные проверки if (is_object(\$var)) или if (!empty(\$var)) перед вызовом методов смежных моделей или компонентов.
-2. Логирование CakePHP v2: При необходимости логирования ошибок используйте CakeLog::write('debug', 'сообщение') или \$this->log('сообщение', 'debug'). Запрещено использовать современные методы логирования PSR-3.
-3. Обработка исключений: Помните, что в PHP 5.6 базовый интерфейс \Throwable отсутствует, а большинство внутренних ошибок PHP не перехватываются через try/catch (Exception). Убедитесь, что логика валидации предотвращает фатальные ошибки до их возникновения.
+Debugging and error fixing rules:
+1. Null Protection: PHP 5.6 has no Nullsafe operator (?->). Always add explicit checks if (is_object(\$var)) or if (!empty(\$var)) before calling methods on related models or components.
+2. CakePHP v2 Logging: When error logging is needed, use CakeLog::write('debug', 'message') or \$this->log('message', 'debug'). Modern PSR-3 logging methods are prohibited.
+3. Exception Handling: Remember that PHP 5.6 lacks the base \Throwable interface, and most internal PHP errors are not caught by try/catch (Exception). Ensure validation logic prevents fatal errors before they occur.
 INSTRUCTION;
     }
 }

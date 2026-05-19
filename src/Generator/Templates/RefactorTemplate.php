@@ -14,16 +14,16 @@ class RefactorTemplate extends AbstractPromptTemplate
         $warningNotice = '';
         if ($influence > 0) {
             $componentsList = implode(', ', $impactedBy);
-            $warningNotice = "⚠️ ВНИМАНИЕ: Этот компонент имеет высокий Influence Score ($influence). От него зависят: $componentsList. Изменения не должны сломать их публичный интерфейс! Действуйте максимально консервативно.\n";
+            $warningNotice = "⚠️ WARNING: This component has a high Influence Score ($influence). The following depend on it: $componentsList. Changes must not break their public interface! Act as conservatively as possible.\n";
         }
 
         return <<<INSTRUCTION
-Выполните рефакторинг целевого файла.
+Perform refactoring of the target file.
 $warningNotice
-Цели рефакторинга:
-1. Оптимизация legacy-кода без нарушения обратной совместимости.
-2. Исправление потенциальных уязвимостей или неоптимальных запросов, если они обнаружены.
-3. Соблюдение конвенций CakePHP v2 (использование моделей через \$this->{ModelName}, правильная работа с компонентами).
+Refactoring goals:
+1. Optimize legacy code without breaking backward compatibility.
+2. Fix potential vulnerabilities or suboptimal queries if found.
+3. Follow CakePHP v2 conventions (using models via \$this->{ModelName}, proper component handling).
 INSTRUCTION;
     }
 }

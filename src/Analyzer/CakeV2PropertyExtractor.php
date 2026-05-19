@@ -19,12 +19,12 @@ class CakeV2PropertyExtractor extends NodeVisitorAbstract
 
     public function leaveNode(Node $node)
     {
-        // 1. Извлечение статических свойств класса (уровень свойств контроллера/модели)
+        // 1. Extract static class properties (controller/model property level)
         if ($node instanceof Property) {
             foreach ($node->props as $prop) {
                 $propertyName = $prop->name->toString();
                 
-                // Извлечение данных для Контроллеров (uses, components)
+                // Extract data for Controllers (uses, components)
                 if (in_array($propertyName, ['uses', 'components'])) {
                     $values = $this->extractArrayValues($prop->default);
                     if ($propertyName === 'uses') {
@@ -34,7 +34,7 @@ class CakeV2PropertyExtractor extends NodeVisitorAbstract
                     }
                 }
                 
-                // Извлечение данных для Моделей (CakePHP v2 associations)
+                // Extract data for Models (CakePHP v2 associations)
                 if (in_array($propertyName, ['belongsTo', 'hasMany', 'hasOne', 'hasAndBelongsToMany'])) {
                     $associatedWith = $this->extractAssociationKeys($prop->default);
                     foreach ($associatedWith as $modelName) {
@@ -47,13 +47,13 @@ class CakeV2PropertyExtractor extends NodeVisitorAbstract
             }
         }
 
-        // 2. Новая логика: Сбор динамических моделей через $this->loadModel('ModelName') внутри методов
+        // 2. New logic: Collect dynamic models via $this->loadModel('ModelName') inside methods
         if ($node instanceof MethodCall) {
-            // Проверяем, что вызов идет у объекта $this
+            // Check that the call is on $this object
             if ($node->var instanceof Variable && $node->var->name === 'this') {
-                // Проверяем, что имя метода именно loadModel
+                // Check that method name is loadModel
                 if ($node->name instanceof Identifier && $node->name->toString() === 'loadModel') {
-                    // Проверяем, что передан первый аргумент и это строка
+                    // Check that first argument is passed and it's a string
                     if (isset($node->args[0]) && $node->args[0]->value instanceof String_) {
                         $dynamicModel = $node->args[0]->value->value;
                         $this->models[] = $dynamicModel;
@@ -66,7 +66,7 @@ class CakeV2PropertyExtractor extends NodeVisitorAbstract
     }
 
     /**
-     * Помощник для извлечения простых значений из индексного массива
+     * Helper for extracting simple values from indexed array
      */
     private function extractArrayValues(?Node $expr): array
     {
@@ -82,10 +82,10 @@ class CakeV2PropertyExtractor extends NodeVisitorAbstract
     }
 
     /**
-     * Помощник для извлечения ассоциированных моделей.
-     * В CakePHP ассоциации могут быть заданы как простым массивом array('Group'),
-     * так и ассоциативным array('Group' => array('className' => 'Group')).
-     * Нам в обоих случаях нужны ключи/названия моделей.
+     * Helper for extracting associated models.
+     * In CakePHP, associations can be specified as simple array array('Group'),
+     * or associative array('Group' => array('className' => 'Group')).
+     * We need keys/model names in both cases.
      */
     private function extractAssociationKeys(?Node $expr): array
     {
@@ -96,11 +96,11 @@ class CakeV2PropertyExtractor extends NodeVisitorAbstract
                     continue;
                 }
                 
-                // Если задано как 'Group' => array(...)
+                // If specified as 'Group' => array(...)
                 if ($item->key instanceof String_) {
                     $keys[] = $item->key->value;
                 } 
-                // Если задано просто как значение в массиве array('Group')
+                // If specified simply as value in array array('Group')
                 elseif ($item->value instanceof String_) {
                     $keys[] = $item->value->value;
                 }
@@ -125,7 +125,7 @@ class CakeV2PropertyExtractor extends NodeVisitorAbstract
     }
 
     /**
-     * Сброс внутреннего состояния экстрактора перед парсингом нового файла
+     * Reset extractor internal state before parsing new file
      */
     public function clear(): void
     {
@@ -135,8 +135,8 @@ class CakeV2PropertyExtractor extends NodeVisitorAbstract
     }
 
     /**
-     * Возвращает плоский список всех сущностей, от которых зависит данный файл,
-     * для построения глобального индекса связей.
+     * Returns flat list of all entities this file depends on,
+     * for building global relationship index.
      */
     public function extractDependencies(): array
     {

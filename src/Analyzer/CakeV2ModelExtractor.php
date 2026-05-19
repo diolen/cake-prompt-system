@@ -15,11 +15,11 @@ class CakeV2ModelExtractor extends NodeVisitorAbstract
     ];
 
     /**
-     * Логика обхода узлов AST
+     * AST node traversal logic
      */
     public function leaveNode(Node $node)
     {
-        // Ищем свойства внутри класса (например: public \$belongsTo = array(...);)
+        // Search for properties inside class (e.g.: public \$belongsTo = array(...);)
         if ($node instanceof Node\Stmt\Property) {
             foreach ($node->props as $prop) {
                 $propName = $prop->name->toString();
@@ -32,7 +32,7 @@ class CakeV2ModelExtractor extends NodeVisitorAbstract
     }
 
     /**
-     * Разбор структуры массива CakePHP (поддерживает как явные массивы, так и упрощенные строки)
+     * Parse CakePHP array structure (supports both explicit arrays and simplified strings)
      */
     private function parseAssociationArray(?Node $arrayNode): array
     {
@@ -46,8 +46,8 @@ class CakeV2ModelExtractor extends NodeVisitorAbstract
                 continue;
             }
 
-            // Случай 1: Упрощенная нотация CakePHP: public \$hasMany = array('Order');
-            // Ключа нет, есть только строковое значение
+            // Case 1: Simplified CakePHP notation: public \$hasMany = array('Order');
+            // No key, only string value
             if ($item->key === null && $item->value instanceof Node\Scalar\String_) {
                 $alias = $item->value->value;
                 $result[$alias] = [
@@ -58,7 +58,7 @@ class CakeV2ModelExtractor extends NodeVisitorAbstract
                 continue;
             }
 
-            // Случай 2: Стандартная нотация: 'Order' => array('className' => 'Order', ...)
+            // Case 2: Standard notation: 'Order' => array('className' => 'Order', ...)
             if ($item->key instanceof Node\Scalar\String_) {
                 $alias = $item->key->value;
                 $assocConfig = [];
@@ -68,7 +68,7 @@ class CakeV2ModelExtractor extends NodeVisitorAbstract
                         if ($subItem !== null && $subItem->key instanceof Node\Scalar\String_) {
                             $paramName = $subItem->key->value;
                             
-                            // Извлекаем только строковые и булевые значения конфигурации
+                            // Extract only string and boolean configuration values
                             if ($subItem->value instanceof Node\Scalar\String_) {
                                 $assocConfig[$paramName] = $subItem->value->value;
                             } elseif ($subItem->value instanceof Node\Expr\ConstFetch) {
@@ -93,17 +93,17 @@ class CakeV2ModelExtractor extends NodeVisitorAbstract
     }
 
     /**
-     * Фолбэк генерации внешнего ключа по конвенциям CakePHP (User -> user_id)
+     * Fallback for generating foreign key by CakePHP conventions (User -> user_id)
      */
     private function guessForeignKey(string $alias): string
     {
-        // Базовый snake_case конвертер для соблюдения конвенций CakePHP v2
+        // Basic snake_case converter to follow CakePHP v2 conventions
         $underscored = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $alias));
         return $underscored . '_id';
     }
 
     /**
-     * Получить собранные ассоциации модели
+     * Get collected model associations
      */
     public function getAssociations(): array
     {

@@ -1,18 +1,18 @@
-# СИСТЕМНЫЕ ОГРАНИЧЕНИЯ ОКРУЖЕНИЯ (КРИТИЧЕСКИ ВАЖНО)
-Вы — эксперт по legacy-разработке на PHP и фреймворку CakePHP v2.x.
-Весь предоставляемый вами код ДОЛЖЕН строго соответствовать стандартам **PHP 5.6**.
+# SYSTEM ENVIRONMENT CONSTRAINTS (CRITICALLY IMPORTANT)
+You are an expert in legacy PHP development and the CakePHP v2.x framework.
+All code you provide MUST strictly follow **PHP 5.6** standards.
 
-## Жесткие синтаксические запреты PHP 5.6:
-1. ЗАПРЕЩЕНО использовать короткий синтаксис массивов `[]`. Используйте только `array()`.
-2. ЗАПРЕЩЕН Null Coalescing оператор `??`. Используйте `isset($var) ? $var : $default`.
-3. ЗАПРЕЩЕНЫ стрелочные функции `fn() =>`. Используйте `function() use () {}`.
-4. ЗАПРЕЩЕНЫ typed properties (модификаторы типов свойств класса, например: private $name;). Пишите просто private $name;.
-5. ЗАПРЕЩЕНЫ return types и argument types для скалярных типов (string, int, bool) в сигнатурах методов.
+## Strict PHP 5.6 syntax prohibitions:
+1. FORBIDDEN to use short array syntax `[]`. Use only `array()`.
+2. FORBIDDEN Null Coalescing operator `??`. Use `isset($var) ? $var : $default`.
+3. FORBIDDEN arrow functions `fn() =>`. Use `function() use () {}`.
+4. FORBIDDEN typed properties (class property type modifiers, e.g.: private $name;). Just write private $name;.
+5. FORBIDDEN return types and argument types for scalar types (string, int, bool) in method signatures.
 
 ---
 
-# КОНТЕКСТ АНАЛИЗИРУЕМОГО КОМПОНЕНТА
-Ниже приведены данные статического анализа файла, который необходимо обработать:
+# ANALYZED COMPONENT CONTEXT
+Below are the static analysis data of the file that needs to be processed:
 {
     "system_meta": {
         "framework": "CakePHP",
@@ -125,25 +125,25 @@
 
 ---
 
-# ИНСТРУКЦИЯ К ВЫПОЛНЕНИЮ ЗАДАЧИ
-Выполните рефакторинг целевого файла.
-⚠️ ВНИМАНИЕ: Этот компонент имеет высокий Influence Score (14). От него зависят: ReportsController, InvoicesOcController, ReportsmeController, RatingSuppliersController, SicsStatusesLog, RatingSupplier, EventualContract, SicsMovement, Contract, AppffSurrender, AlertShell, VehicleShell, RatingSuppliesUpdateShell, CopernicoShell. Изменения не должны сломать их публичный интерфейс! Действуйте максимально консервативно.
+# TASK EXECUTION INSTRUCTION
+Perform refactoring of the target file.
+⚠️ WARNING: This component has a high Influence Score (14). The following depend on it: ReportsController, InvoicesOcController, ReportsmeController, RatingSuppliersController, SicsStatusesLog, RatingSupplier, EventualContract, SicsMovement, Contract, AppffSurrender, AlertShell, VehicleShell, RatingSuppliesUpdateShell, CopernicoShell. Changes must not break their public interface! Act as conservatively as possible.
 
-Цели рефакторинга:
-1. Оптимизация legacy-кода без нарушения обратной совместимости.
-2. Исправление потенциальных уязвимостей или неоптимальных запросов, если они обнаружены.
-3. Соблюдение конвенций CakePHP v2 (использование моделей через $this->{ModelName}, правильная работа с компонентами).
+Refactoring goals:
+1. Optimize legacy code without breaking backward compatibility.
+2. Fix potential vulnerabilities or suboptimal queries if found.
+3. Follow CakePHP v2 conventions (using models via $this->{ModelName}, proper component handling).
 
-### ⚡ КРИТИЧЕСКИЕ ДОПОЛНИТЕЛЬНЫЕ ТРЕБОВАНИЯ ПОЛЬЗОВАТЕЛЯ:
-При генерации кода вы обязаны беспрекословно учесть следующие точечные инструкции:
-> Оптимизируй legacy-циклы foreach, перепиши их через Hash::extract или Hash::combine, где это возможно, для ускорения работы на PHP 5.6
+### ⚡ CRITICAL ADDITIONAL USER REQUIREMENTS:
+When generating code you must unconditionally follow these specific instructions:
+> Test instruction parameter TEST
 
 
 ---
 
-# ИСХОДНЫЙ КОД ЦЕЛЕВОГО ФАЙЛА
-Ниже представлен оригинальный код компонента, который требует обработки. 
-Изучите его структуру, методы и зависимости перед началом работы:
+# TARGET FILE SOURCE CODE
+Below is the original code of the component that requires processing.
+Study its structure, methods, and dependencies before starting work:
 
 ```php
 <?php

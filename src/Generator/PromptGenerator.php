@@ -10,7 +10,7 @@ use Exception;
 class PromptGenerator
 {
     /**
-     * Генерирует готовый промпт на основе анализа, типа задачи и кастомного ТЗ
+     * Generates ready prompt based on analysis, task type and custom instruction
      */
     public function generate(array $analysisResult, string $taskType, string $customInstruction = ''): string
     {
@@ -25,10 +25,10 @@ class PromptGenerator
                 $template = new DebugTemplate($analysisResult);
                 break;
             default:
-                throw new Exception("Неизвестный тип задачи: {$taskType}");
+                throw new Exception("Unknown task type: {$taskType}");
         }
 
-        // Пробрасываем инструкцию пользователя в базовый компилятор шаблона
+        // Pass user instruction to base template compiler
         return $template->compile($customInstruction);
     }
 }

@@ -12,18 +12,18 @@ class JsonSchemaValidator
     public function __construct(string $schemaPath)
     {
         if (!file_exists($schemaPath)) {
-            throw new Exception("Критическая ошибка: Файл JSON-схемы не найден по пути: {$schemaPath}");
+            throw new Exception("Critical error: JSON schema file not found at path: {$schemaPath}");
         }
         $this->schemaPath = $schemaPath;
     }
 
     /**
-     * Валидирует массив данных против JSON-схемы
-     * @throws Exception если данные не валидны
+     * Validates data array against JSON schema
+     * @throws Exception if data is invalid
      */
     public function validate(array $data): void
     {
-        // Библиотека justinrainbow/json-schema требует объект (stdClass), а не ассоциативный массив
+        // The justinrainbow/json-schema library requires an object (stdClass), not an associative array
         $dataObject = json_decode(json_encode($data));
 
         $validator = new Validator();
@@ -35,7 +35,7 @@ class JsonSchemaValidator
                 $errors[] = sprintf("[%s] %s", $error['property'], $error['message']);
             }
             
-            throw new Exception("Ошибка валидации JSON-схемы:\n" . implode("\n", $errors));
+            throw new Exception("JSON schema validation error:\n" . implode("\n", $errors));
         }
     }
 }
