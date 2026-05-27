@@ -1,0 +1,540 @@
+# SYSTEM ENVIRONMENT CONSTRAINTS (CRITICALLY IMPORTANT)
+You are an expert in legacy PHP development and the CakePHP v2.x framework.
+All code you provide MUST strictly follow **PHP 5.6** standards.
+
+## Strict PHP 5.6 syntax prohibitions:
+1. FORBIDDEN to use short array syntax `[]`. Use only `array()`.
+2. FORBIDDEN Null Coalescing operator `??`. Use `isset($var) ? $var : $default`.
+3. FORBIDDEN arrow functions `fn() =>`. Use `function() use () {}`.
+4. FORBIDDEN typed properties (class property type modifiers, e.g.: private $name;). Just write private $name;.
+5. FORBIDDEN return types and argument types for scalar types (string, int, bool) in method signatures.
+
+---
+
+# ANALYZED COMPONENT CONTEXT
+Below are the static analysis data of the file that needs to be processed:
+{
+    "system_meta": {
+        "framework": "CakePHP",
+        "framework_version": "v2",
+        "php_version": "5.6"
+    },
+    "task_context": {
+        "target_layer": "View",
+        "file_path": "/sic/app/View/Sics/admin_index.ctp",
+        "class_name": "admin_index.ctp"
+    },
+    "metrics": {
+        "connectivity": 0,
+        "influence_score": 0
+    },
+    "relations": {
+        "models": [],
+        "components": [],
+        "associations": [],
+        "validate": []
+    },
+    "impacted_by": []
+}
+
+---
+
+# TASK EXECUTION INSTRUCTION
+Develop and implement changes to the View layer (.ctp template file) in the target file.
+
+View implementation rules in CakePHP v2:
+1. Helper Usage: Use CakePHP helpers for HTML generation instead of raw HTML tags:
+   - $this->Html->link() for links
+   - $this->Form->create(), $this->Form->input(), $this->Form->end() for forms
+   - $this->Paginator->sort(), $this->Paginator->numbers() for pagination
+   - $this->Session->flash() for flash messages
+2. Data Display: Display data passed from Controller using the $this->data array or view variables (e.g., $items, $user).
+3. Elements: Reuse view components using $this->element('element_name') for common UI patterns.
+4. Security: Always escape user input using helpers (they auto-escape by default). Never output raw user data.
+5. PHP 5.6 Compatibility: Use array() syntax instead of short array []. Avoid null coalescing operator ??.
+6. JavaScript/jQuery: If JavaScript is needed, wrap in document ready: $(function(){ ... });
+7. CSS Classes: Use Bootstrap classes if present in the project (e.g., btn, table, form-control).
+
+---
+
+# TARGET FILE SOURCE CODE
+Below is the original code of the component that requires processing.
+Study its structure, methods, and dependencies before starting work:
+
+```php
+<?php /* echo $this->element('admin_sidebar_sics')
+
+	<div id="items" class="items-col"> */  ?>
+
+	<div class="titles clearfix">
+		<div class="pull-left">
+			<h2><?php echo $listTitle ?></h2>
+		</div>
+	</div>
+
+	<?php echo $this->Session->flash(); ?>
+	<?php $redirectArrayUrl = $type === 'ff' ? array( 'controller' => $controller, 'action' => 'index', 'ff') : array( 'controller' => $controller, 'action' => 'index') ?>
+	<div class="search clearfix form-inline">
+		<div class="btn-group">
+		<?php
+			echo $this->Html->link( '<i class="icon-plus"></i> Agregar', array('action' => 'edit'), array('class' => 'btn btn-small', 'escape' => false));
+			echo $this->Html->link( '<i class="icon-trash"></i> Eliminar', '#', array('class' => 'btn btn-small to_action'.( count( $items ) <= 0 ? ' disabled ' : ''), 'rel' => 'delete', 'escape' => false));
+			echo $this->Html->link( '<i class="icon-download"></i> Exportar filtros', array('controller' => 'sics', 'action' => ($type == 'ff') ? 'get_csv_ff' : 'get_csv'), array('class' => 'btn btn-small ', 'escape' => false));
+			echo $this->Html->link( '<i class="icon-download"></i> Exportar filtros resumen', array('controller' => 'sics', 'action' => 'admin_get_csv_resume'), array('class' => 'btn btn-small ', 'escape' => false));
+			/*
+			echo $this->Html->link( '<i class="icon-download"></i> Exportar 2019', array('controller' => 'sics', 'action' => ($type == 'ff') ? 'get_csv_ff_2019' : 'get_csv_2019'), array('class' => 'btn btn-small ', 'escape' => false));
+			*/
+			echo $this->Html->link( '<i class="icon-download"></i> Exportar historico de aprobaciones', array('controller' => 'sics', 'action' => 'get_excel_aprobaciones'), array('class' => 'btn btn-small ', 'escape' => false));
+			echo $this->Html->link( '<i class="icon-download"></i> Exportar historico de rechazadas', array('controller' => 'sics', 'action' => 'admin_get_csv_rejected'), array('class' => 'btn btn-small ', 'escape' => false));
+		?>
+		</div>
+		<div class="search-main search-filters-default clearfix">
+			<?php echo $this->Form->create('Search', array('url' => $redirectArrayUrl, 'style' => 'margin:0;', 'inputDefaults' => array('div' => false, 'label' => false,  'class' => 's175 pull-left search-item')) ) ?>
+
+			<div class="clearfix">
+				<div class="search-query-field pull-right">
+					<?php echo $this->Form->input('sic_number', array('placeholder' => 'N° de Orden', 'class' => 's150')) ?>
+				</div>
+				<div class="search-query-field pull-right">
+					<?php echo $this->Form->input('invoice_number', array('placeholder' => 'N° de Factura ej. 0005-00000728', 'class' => 's300')) ?>
+				</div>
+                <?php if($role != 60): ?>
+				<div class="search-query-field pull-right">
+					<?php echo $this->Form->input('contract_id', array('placeholder' => 'Mantenimiento', 'empty' => 'Mantenimiento', 'class' => 's150', 'options' => $contracts)) ?>
+				</div>
+                <?php endif; ?>
+                <?php if($role != 20): ?>
+				<div class="search-query-field pull-right">
+					<?php echo $this->Form->input('eventual_contract_id', array('placeholder' => 'Eventuales', 'empty' => 'Eventuales', 'class' => 's150', 'options' => $eventualContracts)) ?>
+				</div>
+                <?php endif; ?>
+	            <div class="search-query-field pull-right" id="divSearchCenterId">
+	                <?php echo $this->Form->input('center_id', array('data-placeholder' => 'Contratos', 'options' => $centers, 'empty' => 'Contratos', 'class' => 'chosen-select', 'multiple' => true)) ?>
+	            </div>
+	            <div class="search-query-field pull-right">
+	                <?php echo $this->Form->input('operation_unit_id', array('data-placeholder' => 'Unidades operativas', 'empty' => 'Unidades operativas', 'options' => $operationUnits, 'class' => 'chosen-select', 'multiple' => true)) ?>
+	            </div>
+				<div class="search-query-field pull-right">
+					<?php
+						if($this->Session->check('App.Sic.sic_number') || $this->Session->check('App.Sic.sic_id') || $this->Session->check('App.Sic.center_id') || $this->Session->check('App.Sic.operation_unit_id') || $this->Session->check('App.Sic.supplier_id')):
+							echo $this->Html->link('Quitar filtros', array_merge($redirectArrayUrl, array('search' => 'clear-search')), array('class' => 'clear-search-2 btn', 'escape' => false) );
+						endif;
+					?>
+				</div>
+			</div>		
+			<div class="clearfix" style="padding: 10px 0 5px 0;">
+				<div class="search-query-field pull-right">
+					<?php echo $this->Form->input('item_category_id', array('empty' => 'Rubros', 'class' => 's300', 'options' => $categories)) ?>
+				</div>				
+				<div class="search-query-field pull-right">
+					<div class="input-append">
+						<?php echo $this->Form->input('date_end', array('placeholder' => 'Fecha hasta', 'class' => 's75 datepicker date_end', 'readonly' => 'readonly')) ?>
+						<?php echo $this->Html->link('<i class="icon-calendar"></i>', '#', array('rel' => 'date_end', 'class' => 'btn datepickerLink', 'escape' => false)); ?>
+					</div>
+				</div>					
+				<div class="search-query-field pull-right">
+					<div class="input-append">
+						<?php echo $this->Form->input('date_start', array('placeholder' => 'Fecha desde', 'class' => 's75 datepicker date_start', 'readonly' => 'readonly')) ?>
+						<?php echo $this->Html->link('<i class="icon-calendar"></i>', '#', array('rel' => 'date_start', 'class' => 'btn datepickerLink', 'escape' => false)); ?>
+					</div>
+				</div>
+                
+                <?php if(isset($centers) && (!in_array( $role, array(10 , 20, 60)))): ?>
+                    <div class="search-query-field pull-right">
+                        <?php echo $this->Form->input('jefeobra_id', array('placeholder' => 'Jefe de Obra', 'empty' => 'Jefe de Obra', 'class' => 's150', 'options' => $jo)) ?>
+                    </div>                
+                    <div class="search-query-field pull-right">
+                        <?php echo $this->Form->input('user_id', array('placeholder' => 'Jefe de Sitio', 'empty' => 'Jefe de Sitio', 'class' => 's150', 'options' => $js)) ?>
+                    </div>
+                <?php endif; ?>
+                
+				<div class="search-query-field pull-right">
+					<?php //echo $this->Form->input('supplier_id', array('placeholder' => 'Proveedor', 'empty' => 'Todos los proveedores', 'class' => 's150', 'options' => $suppliers)) ?>
+					<?php echo $this->Form->input('supplier_company', array('id' => 'live-search-supplier', 'placeholder' => 'Proveedor', 'class' => 's250', 'type' => 'text', 'autocomplete' => 'off')) ?>
+					<?php echo $this->Form->input('supplier_id', array('type' => 'hidden', 'id' => 'live-search-supplier-id')) ?>
+					<div id="live-result-supplier" style="position: absolute; background-color: #fff; border: 1px solid #ccc; width: auto; padding:4px; display: none;"></div>
+				</div>
+				<div class="search-query-field pull-right">
+					<?php echo $this->Form->input('sic_status_id', array('empty' => 'Estado de Aprobación', 'class' => 's150', 'options' => $_sic_statuses)) ?>
+				</div>
+			</div>
+			<div class="clearfix" style="padding: 10px 0 5px 0;">
+				<div class="search-query-field pull-right">
+					<?php echo $this->Form->button( 'Buscar', array('class' => 'btn btn-primary')) ?>
+				</div>				
+				<div class="search-query-field pull-right" style="width: 230px;">
+					<label><?php echo $this->Form->input('only_my_role', array( 'type' => 'checkbox', 'class' => '') ) ?><span style="font-size: 11px; color: #666; line-height: 100%;"> Sólo pendientes de aprobar por mi perfil</span></label>
+				</div>                
+			</div>
+			<?php echo $this->Form->end() ?>
+		</div>		
+	</div>
+
+	<?php if ( count( $items ) > 0 ) : ?>
+	<?php echo $this->Form->create('Index', array('id' => 'IndexForm', 'url' => '/'.$this->params['url'])) ?>
+	<table class="table table-striped">
+		<tr>
+			<th class="p2"><?php echo in_array($this->Session->read('Auth.User.role'), array(40, 50, 90)) ? $this->Form->input('all', array('label' => false, 'type' => 'checkbox', 'value' => 'all', 'class' => 'allCheckBox')) : '' ?></th>
+			<th class="p5"><?php echo $this->Paginator->sort($model.'.date_of', 'Fecha', array('class' => 'sorter') ); ?></th>
+			<th class="p10"><?php echo $this->Paginator->sort('Sic.id', 'N° Sic', array('class' => 'sorter') ); ?></th>
+			<th class="p10 text-info">Unidad operativa</th>
+			<th class="p15 text-info">Responsable(JO/JS)</th>
+			<th class="p10 text-info">Fecha VTO Factura</th>
+			<th class="p5 text-info">RB Pto. $</th>
+			<th class="p5 text-info">RB Pto. %</th>
+			<th class="p30"><?php echo $this->Paginator->sort('Sic.status_id', 'Estado', array('class' => 'sorter') ); ?></th>
+			<th class="p5 text-center"><?php echo $this->Paginator->sort( $model.'.total', 'Importe', array('class' => 'sorter') ); ?></th>
+			<th>&nbsp;</th>
+		</tr>
+		<?php $i=1; foreach($items as $item): ?>
+        <tr id="item_<?php echo $item[$model]['id'] ?>">
+			<td><?php echo in_array($this->Session->read('Auth.User.role'), array(40, 50, 90)) ? $this->Form->input('Index.check'.$item[$model]['id'], array('label' => false, 'type' => 'checkbox', 'value' => $item[$model]['id'], 'class' => 'check')) : '' ?></td>
+			<td><?php echo $this->Time->format('d/m/Y', $item['Sic']['date_of'] ) ?></td>
+			<td>
+				<div><?php echo $item['Sic']['sic_number']; ?></div>
+				<div><?php echo $_contract_type[ $item['Sic']['contract_type_id'] ]; ?></div>
+				<div>
+					<?php if($item['Sic']['contract_type_id']==1) {
+							echo $item['EventualContract']['EventualContractBudget']['contract_number'] != '' ? 'Contrato Nro.: ' . $item['EventualContract']['EventualContractBudget']['contract_number'] : '';
+						}else{
+							echo $item['Contract']['contract_number'] != '' ? 'Contrato Nro.: ' . $item['Contract']['contract_number'] : '';
+						}
+					?>					
+				</div>				
+				<?php echo '<span class="supplier" style="font-size: 11px; color: #666;">',$item['Supplier']['company'],'</span>' ?>
+			</td>
+            <td>
+            	<?php
+            	if($item['Sic']['operation_unit_id'] > 0) {
+            		echo $operationUnits[$item['Sic']['operation_unit_id']] . '<br>';
+            	} elseif(isset($operationCentersUnits[$item['Sic']['center_id']])) {
+            		echo $operationCentersUnits[$item['Sic']['center_id']]['title'] . '<br>';	
+            	}
+				?>
+
+				<div>
+	                <?php if($item['Sic']['contract_type_id'] == 1 && isset($item['EventualContract']['EventualContractBudget']['Customer']['company'])):
+	                    echo $item['EventualContract']['EventualContractBudget']['Customer']['company'] == "" ? '' : $item['EventualContract']['EventualContractBudget']['Customer']['company'];
+	                elseif($item['Sic']['contract_type_id'] == 0 && isset($item['Contract']['Customer']['company'])):
+	                    echo $item['Contract']['Customer']['company'] == "" ? '' : $item['Contract']['Customer']['company'];
+	                endif; ?>
+				</div>            	
+            	<span class="supplier" style="font-size: 11px; color: #666;">
+					<?php echo $item['Sic']['contract_type_id']==1 ? strtolower($item['EventualContract']['EventualContractBudget']['title']) : strtolower($item['Contract']['title']); ?>
+            	</span>
+            </td>
+			<td>
+				<div>
+					<?php if($item['Sic']['contract_type_id']==1) {
+							echo $users[$item['EventualContract']['EventualContractBudget']['jefeobra_id']];
+						}else{
+							echo $users[$item['Contract']['user_id']];
+						}
+					?>
+				</div>
+				<span class="supplier" style="font-size: 11px; color: #666;">
+					<?php echo strtolower($item['Sic']['justification']); ?>
+				</span>
+			</td>
+
+            <td>
+            	<?php //if($item[$model]['closed'] == 1): ?>
+	            	<div class="text-nowrap"></div>
+		            	<div class="text-nowrap">
+		            		<?php
+		            		if($item['InvoicesOc']['invoice_oc_ab_status_id'] != 2 && $item[$model]['sp_status_id'] != 2): 
+		            			echo '<div>' . $this->Html->link('Asociar Factura', array('controller' => 'sics', 'action' => 'associated_invoice', $item[$model]['id']), array('title' => 'Asociar Factura', 'escape' => false)) . '</div>';
+		            		endif;
+
+		            		if(!empty($item[$model]['associated_invoice_oc_id'])):
+
+		            			if(!empty($item['InvoicesOc']['invoice_oc_date_expiration'])):
+		            				echo '<div>F. VTO ' .$this->Time->format('d/m/Y', $item['InvoicesOc']['invoice_oc_date_expiration']). '</div>';
+		            			endif;
+
+			            		if($item['InvoicesOc']['invoice_oc_ab_status_id'] != 2 && !empty($item['InvoicesOc']['invoice_oc_date_expiration']) && time() - strtotime($item['InvoicesOc']['invoice_oc_date_expiration'].' 00:00:00') > 86400):
+			            			$datediff = time() - strtotime($item['InvoicesOc']['invoice_oc_date_expiration'].' 00:00:00');
+			            			echo '<div class="label label-important">F. VENCIDA ' .floor($datediff / (60 * 60 * 24)).(floor($datediff / (60 * 60 * 24)) == 1 ? ' día' : ' días'). '</div>';
+			            		endif;
+
+								if(!empty($item['InvoicesOc']['finvoice_oc_file_name'])):
+			            			echo '<div>' . $this->Html->link(substr($item['InvoicesOc']['finvoice_oc_file_name'], 0, 20), '/files/invoices/' . $item['InvoicesOc']['id'] . '/original_' . $item['InvoicesOc']['finvoice_oc_file_name'], array('target' => '_blank', 'class' => 'text-success', 'title' => $item['InvoicesOc']['finvoice_oc_file_name'])) . '</div>';
+			            		endif;
+
+
+			            		if(isset($item['InvoicesOc']['invoice_oc_ab_status_id']) && $item['InvoicesOc']['invoice_oc_ab_status_id'] != 2 && (in_array($authUserId, $admUsersArray) || in_array($authUserId, array(89)))):
+			            			echo '<div>' . $this->Html->link('Subir Comprobante de Pago', array('controller' => 'invoices_oc', 'action' => 'edit', $item['InvoicesOc']['id'])) . '</div>';
+			            		endif;
+
+			            		if(in_array($role, array(10, 20, 40, 50))):
+			            			echo '<div>Comprobantes de pago:</div>';
+				            		for($ip = 1; $ip <= 10; $ip++):
+					            		if(!empty($item['InvoicesOc']['fpayment_proof_' .$ip. '_file_name'])):
+					            			$fileNamesArray = '';
+					            			foreach($invoicesOcPaidList[$item['Sic']['supplier_id']] as $invoicesOcID):
+						            			if(@file_exists('files/invoices/' . $invoicesOcID . '/original_' . $item['InvoicesOc']['fpayment_proof_' .$ip. '_file_name']) && 
+						            				!in_array($item['InvoicesOc']['fpayment_proof_' .$ip. '_file_name'], $fileNamesArray)):
+						            				echo '<div>' . $this->Html->link(substr($item['InvoicesOc']['fpayment_proof_' .$ip. '_file_name'], 0, 20), '/files/invoices/' . $invoicesOcID . '/original_' . $item['InvoicesOc']['fpayment_proof_' .$ip. '_file_name'], array('target' => '_blank', 'class' => 'text-success', 'title' => $item['InvoicesOc']['fpayment_proof_' .$ip. '_file_name'])) . '</div>';
+						            				array_push($fileNamesArray, $item['InvoicesOc']['fpayment_proof_' .$ip. '_file_name']);
+						            			endif;
+					            			endforeach;
+					            		endif;
+				            		endfor;
+
+				            		// DESCOMENTAR PARA LOCALHOST
+				            		// for($ip = 1; $ip <= 10; $ip++):
+					            	// 	if(!empty($item['InvoicesOc']['fpayment_proof_' .$ip. '_file_name'])):
+					            	// 		//if(file_exists('/files/invoices/' . $item['InvoicesOc']['id'] . '/original_' . $item['InvoicesOc']['fpayment_proof_' .$ip. '_file_name'])):
+					            	// 			echo '<div>' . $this->Html->link(substr($item['InvoicesOc']['fpayment_proof_' .$ip. '_file_name'], 0, 20), '/files/invoices/' . $item['InvoicesOc']['id'] . '/original_' . $item['InvoicesOc']['fpayment_proof_' .$ip. '_file_name'], array('target' => '_blank', 'class' => 'text-success', 'title' => $item['InvoicesOc']['fpayment_proof_' .$ip. '_file_name'])) . '</div>';
+					            	// 		//endif;
+					            	// 	endif;
+				            		// endfor;
+			            		endif;
+		            		endif;
+		            		?>
+		            	</div>
+		            	<?php if(!empty($item[$model]['payment_details'])):
+		            			echo '<div style="font-size: 11px; color: #666;">' . $item[$model]['payment_details'] . '</div>';
+		            		endif;?>
+		        <?php //endif; ?>
+            </td>
+            <td>
+                <?php
+                if($item['Sic']['contract_type_id'] == 1):
+                    $budgetIncome = $item['EventualContract']['EventualContractBudget']['income_pto'];
+                    $contractCost = $item['EventualContract']['cost'] + $item['EventualContract']['labor'] + $item['EventualContract']['fixedcost'] + $item['EventualContract']['othercost'];
+                    $amountBudgeted = $budgetIncome > 0 ? $budgetIncome - $contractCost : 0;
+                    echo number_format( $amountBudgeted, 0, '', '.');                    
+                endif;
+                ?>
+            </td>
+            <td>
+                <?php
+                if($item['Sic']['contract_type_id'] == 1):
+                    $amountBudgetedPercentage = $budgetIncome > 0 ? ($amountBudgeted * 100) / $budgetIncome : 'N/A';
+                    echo $amountBudgetedPercentage != 'N/A' ? number_format($amountBudgetedPercentage, 1, ',', '').'%' : 'N/A';                    
+                endif;
+                ?>
+            </td>
+			<td>
+				<div id="container-statuses-<?php echo $item['Sic']['id']; ?>" class="sic-statuses"><?php echo $this->element('admin_sics_statuses', array(
+					'item' => $item, 
+					'role' => $role, 
+					'authUserId' => $authUserId, 
+					'_rejections_reasons' => $_rejections_reasons, 
+					'admUsersArray' => $admUsersArray)) ?></div>
+			</td>
+			<td class="text-center"><?php echo number_format($item['Sic']['total'], 2, ',', '.'); ?></td>
+			<td>
+				<div class="btn-group">
+					<div>
+						<?php echo $this->Html->link( '<i class="icon-list"></i>', array( 'action' => 'detail', $item[$model]['id']), array( 'class' => 'btn btn-small', 'title' => 'Detalles', 'escape' => false) ); ?>
+					</div>
+					<div>
+						<?php echo $this->Html->link( '<i class="icon-pencil"></i>', array( 'action' => 'edit', $item[$model]['id'], 'type' => 'sic'), array( 'class' => 'btn btn-small', 'title' => 'Editar', 'escape' => false) ); ?>
+					</div>
+					<div>
+						<?php echo $this->Html->link( '<i class="icon-thumbs-up"></i>', array('controller' => 'rating_suppliers', 'action' => 'edit', $item['Sic']['id'], $item['Sic']['supplier_id']), array( 'class' => 'btn btn-small', 'title' => 'Calificar', 'escape' => false) ); ?>
+					</div>
+				</div>
+			</td>
+		</tr>
+		<?php $i++; endforeach; ?>
+	</table>
+	<script type="text/javascript">
+	$(function(){
+		checkboxes_actions("<?php echo $controller ?>");
+	})
+	</script>
+	<?php echo $this->Form->end() ?>
+	<?php else : ?>
+	<div class="alert">
+		<?php echo __("No records") ?>
+	</div>
+	<?php endif; ?>
+
+	<?php echo $this->element('admin_pag') ?>
+	<?php /*
+	</div> */ ?>
+<script type="text/javascript">
+$(function(){
+
+	$('.datepicker').datepicker({
+		dateFormat: 'dd-mm-yy',
+		minDate: null,
+		changeMonth: true,
+		changeYear: true,
+		onSelect: function(date_end, inst_end){
+
+		}
+	});
+
+	<?php if(isset($date_start)): ?>
+	$('.date_start').datepicker('setDate', '<?php echo $date_start ?>') ; 
+	<?php endif ?>
+
+	<?php if(isset($date_end)): ?>
+	$('.date_end').datepicker('setDate', '<?php echo $date_end ?>') ; 
+	<?php endif ?>	
+
+
+	$('.datepickerLink').click(function(){
+		$('.'+$(this).attr('rel')).datepicker('show');
+		return false;
+	});
+    
+    $('#SearchEventualContractId').on('change', function() {
+        $('select#SearchContractId').val('');
+    });
+    
+    $('#SearchContractId').on('change', function() {
+        $('select#SearchEventualContractId').val('');
+    });
+    
+    $('#SearchCenterId').on('change', function() {
+        var centerId = $(this).val();
+        if(centerId > 0) {
+	        $.ajax({
+	            dataType: 'text',
+	            url: '<?php echo Router::url(array('controller' => 'Sics', 'action' => 'getEventualContractList')); ?>',
+	            data: {'centerId': centerId}
+	        }).done(function (data) {
+	            if(data) {
+	                $('#SearchEventualContractId').html('<option value>Contratos Eventuales</optiion>' + data);
+	            }
+	        });
+	        
+	        $.ajax({
+	            dataType: 'json',
+	            url: '<?php echo Router::url(array('controller' => 'Sics', 'action' => 'getContractList')); ?>',
+	            data: {'centerId': centerId}
+	        }).done(function (data) {
+	            if(data) {
+	                var output = '';
+	                $('#SearchContractId').html('<option value>Contratos Mant.</optiion>');
+	                $.each(data, function(k, v) {
+	                    output += '<option value="'+k+'">'+v+'</optiion>';
+	                });
+	                $('#SearchContractId').append(output);
+	            }
+	        });	        
+        }
+    });
+
+    $('.chosen-select').chosen();
+
+
+    var operationUnitId = '<?php echo isset($this->request->data['Search']['operation_unit_id'])  ? json_encode($this->request->data['Search']['operation_unit_id']) : 0; ?>';
+
+    // DDL multple
+    $('.chosen-select').chosen();
+
+    getCenters = function(operationUnitId) {
+        $.ajax({
+            dataType: 'json',
+            url: '<?php echo Router::url(array('controller' => 'Reports', 'action' => 'getCenters')); ?>',
+            data: {'operationUnitId': operationUnitId}
+        }).done(function (data) {
+            if(data) {
+                $('#divSearchCenterId').html('');
+                var output = '<select name="data[Search][center_id][]" class="chosen-select" data-placeholder="Contratos" multiple="multiple" id="SearchOperationUnitId">';
+                $.each(data, function(k, v) {
+                    output += '<option value="'+k+'">'+v+'</optiion>';
+                });
+                output += '</select>';
+                $('#divSearchCenterId').html(output);
+                $('.chosen-select').chosen();
+            }
+        });        
+    }    
+
+    // if(operationUnitId.length > 0) {
+    //     getCenters($.parseJSON(operationUnitId));        
+    // }
+
+    // Genero DDL de contratos
+    $('#SearchOperationUnitId').on('change click', function() {
+        operationUnitId = $(this).val();
+        getCenters(operationUnitId);
+    });
+
+    var supplierId = '<?php echo $this->Session->check('App.Sic.supplier_id') ? json_encode($this->Session->check('App.Sic.supplier_id')) : 0 ?>';
+    var supplierSearchUrl = '<?php echo Router::url(array('controller' => 'suppliers', 'action' => 'supplierslist')); ?>';
+
+    if(supplierId > 0) {
+    	liveSupplierSearch(supplierId, supplierSearchUrl, '');
+    }
+
+    $('#live-search-supplier').on('keyup', function() {
+    	var searchSupplierStr = $(this).val();
+    	liveSupplierSearch(null, supplierSearchUrl, searchSupplierStr);
+    });
+
+    // Aprobaciones
+	$('select.select_sic_status').on('change', function() {
+		var updateStatusUrl = '<?php echo Router::url(array('controller' => 'Sics', 'action' => 'update_sic_statuses')); ?>';
+		var statusId = $(this).val();
+		var sicId = $(this).data('sicid');
+		var perfilId = $(this).data('perfil');
+		var reason = '';
+		var reasonId = 0;
+		var flag = true;
+
+        if(statusId == 4) {
+        	if(confirm('Estas por anular una SIC')) {
+        		flag = true;
+        	} else {
+        		flag = false;
+        	}
+        }
+
+        // Motivo de rachazo
+        if(statusId == 3) {
+        	$('.container-rejected-reason').addClass('hidden');
+        	$('#container-rejected-reason-' + sicId).removeClass('hidden');
+        	reason = $('#reason-' + sicId).val('');
+        	reasonId = $('#reason-option-id-' + sicId).val('');
+        	perfilId = $('#reason-perfil-' + sicId).val(perfilId);
+    		return false;
+        }
+
+        updateSicStatus(updateStatusUrl, flag, sicId, statusId, perfilId, reason, reasonId);
+	});
+
+	$('.btn-reason-send').on('click', function() {
+		var updateStatusUrl = '<?php echo Router::url(array('controller' => 'Sics', 'action' => 'update_sic_statuses')); ?>';
+		var sicId = $(this).data('sicid');
+		var perfilId = $('#reason-perfil-' + sicId).val();
+		var statusId = 3;
+		var reason = $('#reason-' + sicId).val();
+		var reasonId = $('#reason-option-id-' + sicId).val();
+		var flag = true;
+
+		if(reason.length == 0) {
+			$('#reason-' + sicId).addClass('form-error');
+			$('#reason-error-message-' + sicId).show();
+			return false;
+		}
+
+		updateSicStatus(updateStatusUrl, flag, sicId, statusId, perfilId, reason, reasonId);
+	});
+
+	$('.btn-cancel').on('click', function() {
+		var updateStatusUrl = '<?php echo Router::url(array('controller' => 'Sics', 'action' => 'update_sic_statuses')); ?>';
+		var flag = false;
+		var sicId = $(this).data('sicid');
+		var statusId = 3;
+		var perfilId = $('#reason-perfil-' + sicId).val();
+		var reason = '';
+		var reasonId = 0;
+
+		$('.container-rejected-reason').addClass('hidden');
+		$('#IndexReason-' + sicId).text();
+		$('#reason-' + sicId).removeClass('form-error');
+		$('#reason-error-message-' + sicId).hide();
+
+		updateSicStatus(updateStatusUrl, flag, sicId, statusId, perfilId, reason, reasonId);
+	});
+
+});
+</script>

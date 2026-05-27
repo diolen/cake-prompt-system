@@ -49,7 +49,13 @@ Below are the static analysis data of the file that needs to be processed:
         "components": [
             "Email"
         ],
-        "associations": []
+        "associations": [],
+        "validate": [],
+        "helpers": [],
+        "elements": [],
+        "element_context": {},
+        "variables": [],
+        "controller_name": ""
     },
     "impacted_by": [
         "Supplier",
@@ -67,11 +73,6 @@ Refactoring goals:
 1. Optimize legacy code without breaking backward compatibility.
 2. Fix potential vulnerabilities or suboptimal queries if found.
 3. Follow CakePHP v2 conventions (using models via $this->{ModelName}, proper component handling).
-
-### ⚡ CRITICAL ADDITIONAL USER REQUIREMENTS:
-When generating code you must unconditionally follow these specific instructions:
-> Test instruction parameter TEST
-
 
 ---
 
@@ -98,6 +99,7 @@ class SicsController extends AppController {
 	}
 	
 	public function admin_index( $type = '', $sicId = null) {
+		set_time_limit(0);
 		$role = $this->Auth->user('role');
         $authUserId = $this->Auth->user('id');
         $authCenterId = $this->Auth->user('center_id');
@@ -447,7 +449,11 @@ class SicsController extends AppController {
 			$invoicesOcPaidList[$iopVal][] = $iopKey; 
 		}
 		$this->set('invoicesOcPaidList', $invoicesOcPaidList);
-		// Fin de Facturas Abonadas Ordenadas por Proveedores	
+		// Fin de Facturas Abonadas Ordenadas por Proveedores
+
+		// Ticket SI00759402 Calificaciones de Proveedores
+		// TODO: Revisar si esto se usa
+		# $this->set('sicsHaveNoRating', $this->processSicsForRating());
 
 		// Responsable (cualquier usuario del sistema)
 		$options = array('fields' => array('PersonInCharge.id', 'PersonInCharge.first_name'), 'order' => 'PersonInCharge.first_name');
@@ -4321,4 +4327,57 @@ ADD `payment_details` varchar(255) COLLATE 'utf8_general_ci' NULL AFTER `fpaymen
 	
 		die();
 	}
+
+	/**
+	 * Método para procesar y filtrar los Sics que necesitan calificación (sin rating previo)
+	 */
+	private function processSicsForRating() {
+		// Definir la fecha de inicio para el rating (1 año atrás)
+		$ratingSuppliersStartDate = (date('Y') - 1) . "-" . date('m-d');
+
+		// Cargar el modelo RatingSupplier
+		$this->loadModel('RatingSupplier');
+
+		// Obtener los sic_ids que ya tienen rating (como array plano para lookup O(1))
+		$optionsRatingSuppliers = array(
+			'fields' => array('RatingSupplier.sic_id'),
+			'conditions' => array(
+				'RatingSupplier.created >' => $ratingSuppliersStartDate
+			),
+			'group' => array('RatingSupplier.sic_id'),
+			'recursive' => -1
+		);
+
+		$ratingsResult = $this->RatingSupplier->find('all', $optionsRatingSuppliers);
+		$ratingsWithSicIds = array();
+		foreach ($ratingsResult as $rating) {
+			$ratingsWithSicIds[$rating['RatingSupplier']['sic_id']] = true;
+		}
+
+		// Opciones para obtener los Sics que deben procesarse, excluyendo los que ya tienen rating
+		$optionsSicsToProcess = $this->paginate;
+		unset($optionsSicsToProcess['contain']);
+		unset($optionsSicsToProcess['limit']);
+		unset($optionsSicsToProcess['page']);
+		$optionsSicsToProcess['fields'] = array('Sic.id', 'Sic.supplier_id');
+		$optionsSicsToProcess['conditions']['Sic.date_of >='] = $ratingSuppliersStartDate;
+		
+		// Excluir Sics que ya tienen rating usando NOT IN
+		if (!empty($ratingsWithSicIds)) {
+			$optionsSicsToProcess['conditions']['NOT'] = array('Sic.id' => array_keys($ratingsWithSicIds));
+		}
+		
+		$optionsSicsToProcess['recursive'] = -1;
+
+		// Obtener los Sics filtrados directamente en la consulta
+		$sicsToProcess = $this->Sic->find('all', $optionsSicsToProcess);
+
+		// Construir el array resultado
+		$filteredSicsToProcess = array();
+		foreach ($sicsToProcess as $sic) {
+			$filteredSicsToProcess[$sic['Sic']['id']] = $sic['Sic']['supplier_id'];
+		}
+		return $filteredSicsToProcess;
+	}
+
 }

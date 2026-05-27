@@ -1,0 +1,335 @@
+# SYSTEM ENVIRONMENT CONSTRAINTS (CRITICALLY IMPORTANT)
+You are an expert in legacy PHP development and the CakePHP v2.x framework.
+All code you provide MUST strictly follow **PHP 5.6** standards.
+
+## Strict PHP 5.6 syntax prohibitions:
+1. FORBIDDEN to use short array syntax `[]`. Use only `array()`.
+2. FORBIDDEN Null Coalescing operator `??`. Use `isset($var) ? $var : $default`.
+3. FORBIDDEN arrow functions `fn() =>`. Use `function() use () {}`.
+4. FORBIDDEN typed properties (class property type modifiers, e.g.: private $name;). Just write private $name;.
+5. FORBIDDEN return types and argument types for scalar types (string, int, bool) in method signatures.
+
+---
+
+# ANALYZED COMPONENT CONTEXT
+Below are the static analysis data of the file that needs to be processed:
+{
+    "system_meta": {
+        "framework": "CakePHP",
+        "framework_version": "v2",
+        "php_version": "5.6"
+    },
+    "task_context": {
+        "target_layer": "View",
+        "file_path": "/sic/app/View/Reports/admin_reports_costs.ctp",
+        "class_name": "admin_reports_costs.ctp"
+    },
+    "metrics": {
+        "connectivity": 0,
+        "influence_score": 0
+    },
+    "relations": {
+        "models": [
+            "Sic",
+            "Period",
+            "ConnectionManager",
+            "Center",
+            "CopernicoItem",
+            "OperationUnit",
+            "EventualContractBudget",
+            "Contract",
+            "ReportsLabor",
+            "ReportsType",
+            "ForecastLabor",
+            "ForecastGoodsService",
+            "ForecastFixedFund",
+            "ForecastIncome",
+            "UsersCenter",
+            "Income"
+        ],
+        "components": [],
+        "associations": [],
+        "validate": [],
+        "helpers": [
+            "Form",
+            "Session",
+            "Html"
+        ],
+        "elements": [
+            "admin_reports_costs"
+        ],
+        "element_context": {
+            "admin_reports_costs": {
+                "helpers": [
+                    "Session",
+                    "Html"
+                ],
+                "variables": [
+                    "templateColumnsMonth",
+                    "currMonth",
+                    "currYear",
+                    "showResume",
+                    "i",
+                    "resumeGoodsAndSevicesTotal",
+                    "itemsGoodsAndServices",
+                    "accumulatedGoodsAndSevices",
+                    "accumulatedGoodsAndServices",
+                    "_arcAcc",
+                    "filterYear",
+                    "accumulatedDdropCurrentMonth",
+                    "resumeFixedFundTotal",
+                    "itemsFixedFund",
+                    "accumulatedFixedFund",
+                    "itemsLaborByLiquidations",
+                    "resumePPTotal",
+                    "resumeLaborExternalTotal",
+                    "itemsLaborExternal",
+                    "contractsMO",
+                    "collapsed",
+                    "categoryMO",
+                    "sicMO",
+                    "accumulatedExternalLabor",
+                    "resumeLaborTotal",
+                    "itemsLabor",
+                    "item",
+                    "resumeLaborSubTotal",
+                    "accumulatedLabor",
+                    "total",
+                    "showGoodsAndServices",
+                    "categoryBS",
+                    "sicBS",
+                    "hierarchyBS",
+                    "contractsEvtList",
+                    "contractsMntList",
+                    "kmTraveledArray",
+                    "countVehicles",
+                    "aOperationUnits",
+                    "aPatents",
+                    "accumulatedAmortization",
+                    "aYear",
+                    "aOperationUnit",
+                    "aPatent",
+                    "aContracts",
+                    "aContract",
+                    "aKm",
+                    "centersList",
+                    "showFixedFund",
+                    "contractsFF",
+                    "categoryFF",
+                    "sicFF",
+                    "hierarchyFF",
+                    "showLabor",
+                    "laborTotal",
+                    "hierarchyLaborGroped",
+                    "laborSubTotal",
+                    "suffix",
+                    "catItem",
+                    "laborCollapsedTotal",
+                    "itemsCopernico",
+                    "totalCopernicoByRows",
+                    "contractTypeId",
+                    "receipts",
+                    "totalCopernicoByContractType",
+                    "receiptId",
+                    "receipt",
+                    "receiptDateInput",
+                    "itemsGoodsAndServicesBySupplier",
+                    "totalMntByRows",
+                    "totalMntByRow",
+                    "_arcPurchaseAmount",
+                    "totalMntByRowCollapsed",
+                    "itemsSellsGoodsAndServicesBySupplier",
+                    "accumulated",
+                    "incomeCopernicoTotal",
+                    "accumulatedIncomeCopernico",
+                    "accumulatedPurchasesSubtotal",
+                    "accumulatedPurchasesSubtotalC",
+                    "accumulatedEventSubtotal",
+                    "_arcSuffix",
+                    "_arcA",
+                    "_arcB",
+                    "_arcC",
+                    "_arcD",
+                    "copernicoAndPurchasesSubtotalByCol",
+                    "_arcSuffixCurr",
+                    "_arcCurrentMonthTotal",
+                    "netRbTotal",
+                    "accumulatedRB",
+                    "_arcE",
+                    "_arcF",
+                    "_arcG",
+                    "_arcH",
+                    "_arcNumerator",
+                    "_arcDenominator",
+                    "costEffectiveness",
+                    "labelClass",
+                    "_arcRbNumeratorAnnual",
+                    "_arcRbDenominatorAnnual",
+                    "rbCostTotal",
+                    "accumulatedAdministration",
+                    "_arcStructureBase",
+                    "sumAdministration",
+                    "accumulatedCommerce",
+                    "sumCommerce",
+                    "accumulatedTax",
+                    "sumTaxes",
+                    "accumulatedBills",
+                    "sumBills",
+                    "_arcL",
+                    "_arcM",
+                    "netRbPersentage",
+                    "_arcNetDenominatorAnnual",
+                    "yearRbTotal",
+                    "itemsGoodsAndServicesActiveFixed",
+                    "accumulatedGoodsAndServicesActiveFixed",
+                    "itemsGoodsAndServicesActiveFixedTotal"
+                ],
+                "nested_elements": []
+            }
+        },
+        "variables": [
+            "centers",
+            "operationUnits",
+            "filterContractTypeId",
+            "_years",
+            "filteroperationUnitId",
+            "filterCenterId"
+        ],
+        "controller_name": "Reports"
+    },
+    "impacted_by": []
+}
+
+---
+
+# TASK EXECUTION INSTRUCTION
+Develop and implement changes to the View layer (.ctp template file) in the target file.
+
+View implementation rules in CakePHP v2:
+1. Helper Usage: Use CakePHP helpers for HTML generation instead of raw HTML tags:
+   - $this->Html->link() for links
+   - $this->Form->create(), $this->Form->input(), $this->Form->end() for forms
+   - $this->Paginator->sort(), $this->Paginator->numbers() for pagination
+   - $this->Session->flash() for flash messages
+2. Data Display: Display data passed from Controller using the $this->data array or view variables (e.g., $items, $user).
+3. Elements: Reuse view components using $this->element('element_name') for common UI patterns.
+4. Security: Always escape user input using helpers (they auto-escape by default). Never output raw user data.
+5. PHP 5.6 Compatibility: Use array() syntax instead of short array []. Avoid null coalescing operator ??.
+6. JavaScript/jQuery: If JavaScript is needed, wrap in document ready: $(function(){ ... });
+7. CSS Classes: Use Bootstrap classes if present in the project (e.g., btn, table, form-control).
+
+### ⚡ CRITICAL ADDITIONAL USER REQUIREMENTS:
+When generating code you must unconditionally follow these specific instructions:
+> Corregir el calculo de rantabilidad bruta
+
+
+---
+
+# TARGET FILE SOURCE CODE
+Below is the original code of the component that requires processing.
+Study its structure, methods, and dependencies before starting work:
+
+```php
+<!-- Page Title -->
+<div class="titles clearfix">
+    <div class="pull-left">
+        <h2>Resultado Operativo M&E</h2>
+    </div>
+</div>
+
+<!-- Search Filters Form -->
+<div class="search clearfix form-inline">
+    <div class="search-main search-filters-default clearfix">
+        <?php echo $this->Form->create('Search', array('url' => array('controller' => 'reports', 'action' => 'reports_costs'), 'style' => 'margin:0;', 'inputDefaults' => array('div' => false, 'label' => false,  'class' => 's175 pull-left search-item')) ) ?>
+
+        <div class="clearfix">
+            <!-- Search Button -->
+            <div class="search-query-field pull-right">
+                <?php echo $this->Form->button( 'Buscar', array('class' => 'btn btn-primary')) ?>
+            </div>
+            
+            <!-- Centers Filter (dynamically loaded based on operation units) -->
+            <div class="search-query-field pull-right" id="divSearchCenterId">
+                <?php echo $this->Form->input('center_id', array('data-placeholder' => 'Contratos', 'options' => $centers, 'empty' => 'Contratos', 'class' => 'chosen-select', 'multiple' => true)) ?>
+            </div>
+            
+            <!-- Operation Units Filter -->
+            <div class="search-query-field pull-right">
+                <?php echo $this->Form->input('operation_unit_id', array('data-placeholder' => 'Unidades operativas', 'empty' => 'Unidades operativas', 'options' => $operationUnits, 'class' => 'chosen-select', 'multiple' => true)) ?>
+            </div>
+            
+            <!-- Contract Type Filter -->
+            <div class="search-query-field pull-right">
+                <?php echo $this->Form->input('contract_type_id', array(
+                    'data-placeholder' => 'Tipos de Contrato', 
+                    'empty' => 'Tipos de Contrato', 
+                    'class' => 'chosen-select', 'multiple' => true,
+                    'value' => !empty($filterContractTypeId) ? $filterContractTypeId : $this->request->data['contract_type_id'], 
+                    'options' => array(1 => 'Mantenimiento', 2 => 'Eventuales'))) ?>
+            </div>
+            
+            <!-- Year Filter -->
+            <div class="search-query-field pull-right">
+                <?php echo $this->Form->input('title_year', array(
+                    'empty' => 'Año', 'class' => 's150', 
+                    'options' => $_years,
+                    'value' => !empty($this->Session->read('App.Reports.title_year')) ? $this->Session->read('App.Reports.title_year') : '2019',
+                    'empty' => false)) ?>
+            </div>            
+            
+            <!-- Clear Filters Link -->
+            <div class="search-query-field pull-right">
+                <?php if($this->Session->check('App.Reports')) echo $this->Html->link('Quitar filtros', array_merge(array('controller' => 'reports', 'action' => 'reports_costs'), array('search' => 'clear-search')), array('class' => 'clear-search-2 btn', 'escape' => false) ) ?>
+            </div>
+        </div>		
+        <?php echo $this->Form->end() ?>
+    </div>		
+</div>
+
+<!-- Report Content Element -->
+<?php echo $this->element('admin_reports_costs'); ?>
+
+<!-- JavaScript for dynamic center loading based on operation units -->
+<script type="text/javascript">
+$(function() {
+    var centerId = '0';
+    var operationUnitId = '<?php echo !empty($filteroperationUnitId)  ? json_encode($filteroperationUnitId) : 0; ?>';
+
+    // Initialize chosen select dropdowns
+    $('.chosen-select').chosen();
+
+    // Function to fetch centers based on selected operation units
+    getCenters = function(operationUnitId, centerId) {
+        $.ajax({
+            type: 'post',
+            dataType: 'json',
+            url: '<?php echo Router::url(array('controller' => 'Reports', 'action' => 'getCenters')); ?>',
+            data: {'operationUnitId': operationUnitId}
+        }).done(function (data) {
+            if(data) {
+                $('#divSearchCenterId').html('');
+                var output = '<select name="data[Search][center_id][]" class="chosen-select" data-placeholder="Contratos" multiple="multiple" id="SearchCenterId">';
+                $.each(data, function(k, v) {
+                    output += '<option value="'+k+'">'+v+'</optiion>';
+                });
+                output += '</select>';
+                $('#divSearchCenterId').html(output);
+                $('#SearchCenterId').val($.parseJSON(centerId));
+                $('.chosen-select').chosen();
+            }
+        });        
+    }    
+
+    // Load centers if operation units are pre-selected
+    if(operationUnitId.length > 0) {
+        centerId = '<?php echo !empty($filterCenterId) ? json_encode($filterCenterId) : 0; ?>';
+        getCenters(operationUnitId, centerId);        
+    }
+
+    // Reload centers when operation unit selection changes
+    $('#SearchOperationUnitId').on('change click', function() {
+        operationUnitId = $(this).val();
+        getCenters(operationUnitId, centerId);
+    });
+});
+</script>

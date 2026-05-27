@@ -1,18 +1,18 @@
-# СИСТЕМНЫЕ ОГРАНИЧЕНИЯ ОКРУЖЕНИЯ (КРИТИЧЕСКИ ВАЖНО)
-Вы — эксперт по legacy-разработке на PHP и фреймворку CakePHP v2.x.
-Весь предоставляемый вами код ДОЛЖЕН строго соответствовать стандартам **PHP 5.6**.
+# SYSTEM ENVIRONMENT CONSTRAINTS (CRITICALLY IMPORTANT)
+You are an expert in legacy PHP development and the CakePHP v2.x framework.
+All code you provide MUST strictly follow **PHP 5.6** standards.
 
-## Жесткие синтаксические запреты PHP 5.6:
-1. ЗАПРЕЩЕНО использовать короткий синтаксис массивов `[]`. Используйте только `array()`.
-2. ЗАПРЕЩЕН Null Coalescing оператор `??`. Используйте `isset($var) ? $var : $default`.
-3. ЗАПРЕЩЕНЫ стрелочные функции `fn() =>`. Используйте `function() use () {}`.
-4. ЗАПРЕЩЕНЫ typed properties (модификаторы типов свойств класса, например: private $name;). Пишите просто private $name;.
-5. ЗАПРЕЩЕНЫ return types и argument types для скалярных типов (string, int, bool) в сигнатурах методов.
+## Strict PHP 5.6 syntax prohibitions:
+1. FORBIDDEN to use short array syntax `[]`. Use only `array()`.
+2. FORBIDDEN Null Coalescing operator `??`. Use `isset($var) ? $var : $default`.
+3. FORBIDDEN arrow functions `fn() =>`. Use `function() use () {}`.
+4. FORBIDDEN typed properties (class property type modifiers, e.g.: private $name;). Just write private $name;.
+5. FORBIDDEN return types and argument types for scalar types (string, int, bool) in method signatures.
 
 ---
 
-# КОНТЕКСТ АНАЛИЗИРУЕМОГО КОМПОНЕНТА
-Ниже приведены данные статического анализа файла, который необходимо обработать:
+# ANALYZED COMPONENT CONTEXT
+Below are the static analysis data of the file that needs to be processed:
 {
     "system_meta": {
         "framework": "CakePHP",
@@ -39,26 +39,32 @@
             "Person"
         ],
         "components": [],
-        "associations": []
+        "associations": [],
+        "validate": [],
+        "helpers": [],
+        "elements": [],
+        "element_context": {},
+        "variables": [],
+        "controller_name": ""
     },
     "impacted_by": []
 }
 
 ---
 
-# ИНСТРУКЦИЯ К ВЫПОЛНЕНИЮ ЗАДАЧИ
-Найдите и устраните баг или уязвимость в целевом файле.
+# TASK EXECUTION INSTRUCTION
+Find and fix a bug or vulnerability in the target file.
 
-Правила отладки и исправления ошибок:
-1. Защита от Null: В PHP 5.6 нет Nullsafe-оператора (?->). Обязательно добавляйте явные проверки if (is_object($var)) или if (!empty($var)) перед вызовом методов смежных моделей или компонентов.
-2. Логирование CakePHP v2: При необходимости логирования ошибок используйте CakeLog::write('debug', 'сообщение') или $this->log('сообщение', 'debug'). Запрещено использовать современные методы логирования PSR-3.
-3. Обработка исключений: Помните, что в PHP 5.6 базовый интерфейс \Throwable отсутствует, а большинство внутренних ошибок PHP не перехватываются через try/catch (Exception). Убедитесь, что логика валидации предотвращает фатальные ошибки до их возникновения.
+Debugging and error fixing rules:
+1. Null Protection: PHP 5.6 has no Nullsafe operator (?->). Always add explicit checks if (is_object($var)) or if (!empty($var)) before calling methods on related models or components.
+2. CakePHP v2 Logging: When error logging is needed, use CakeLog::write('debug', 'message') or $this->log('message', 'debug'). Modern PSR-3 logging methods are prohibited.
+3. Exception Handling: Remember that PHP 5.6 lacks the base \Throwable interface, and most internal PHP errors are not caught by try/catch (Exception). Ensure validation logic prevents fatal errors before they occur.
 
 ---
 
-# ИСХОДНЫЙ КОД ЦЕЛЕВОГО ФАЙЛА
-Ниже представлен оригинальный код компонента, который требует обработки. 
-Изучите его структуру, методы и зависимости перед началом работы:
+# TARGET FILE SOURCE CODE
+Below is the original code of the component that requires processing.
+Study its structure, methods, and dependencies before starting work:
 
 ```php
 <?php

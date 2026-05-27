@@ -1,0 +1,159 @@
+# SYSTEM ENVIRONMENT CONSTRAINTS (CRITICALLY IMPORTANT)
+You are an expert in legacy PHP development and the CakePHP v2.x framework.
+All code you provide MUST strictly follow **PHP 5.6** standards.
+
+## Strict PHP 5.6 syntax prohibitions:
+1. FORBIDDEN to use short array syntax `[]`. Use only `array()`.
+2. FORBIDDEN Null Coalescing operator `??`. Use `isset($var) ? $var : $default`.
+3. FORBIDDEN arrow functions `fn() =>`. Use `function() use () {}`.
+4. FORBIDDEN typed properties (class property type modifiers, e.g.: private $name;). Just write private $name;.
+5. FORBIDDEN return types and argument types for scalar types (string, int, bool) in method signatures.
+
+---
+
+# ANALYZED COMPONENT CONTEXT
+Below are the static analysis data of the file that needs to be processed:
+{
+    "system_meta": {
+        "framework": "CakePHP",
+        "framework_version": "v2",
+        "php_version": "5.6"
+    },
+    "task_context": {
+        "target_layer": "View",
+        "file_path": "/sic/app/View/Centers/admin_index.ctp",
+        "class_name": "admin_index.ctp"
+    },
+    "metrics": {
+        "connectivity": 0,
+        "influence_score": 0
+    },
+    "relations": {
+        "models": [],
+        "components": [],
+        "associations": [],
+        "validate": [],
+        "helpers": [
+            "Session",
+            "Html",
+            "Form",
+            "Paginator"
+        ],
+        "elements": [
+            "admin_sidebar_centers",
+            "admin_pag"
+        ],
+        "element_context": {
+            "admin_sidebar_centers": {
+                "helpers": [
+                    "Html"
+                ],
+                "variables": [
+                    "_nav",
+                    "_nav_sub"
+                ],
+                "nested_elements": []
+            },
+            "admin_pag": {
+                "helpers": [
+                    "Paginator"
+                ],
+                "variables": [
+                    "no_show_records",
+                    "items"
+                ],
+                "nested_elements": []
+            }
+        },
+        "variables": [
+            "items",
+            "model",
+            "i",
+            "item",
+            "controller"
+        ],
+        "controller_name": "Centers"
+    },
+    "impacted_by": []
+}
+
+---
+
+# TASK EXECUTION INSTRUCTION
+Develop and implement changes to the View layer (.ctp template file) in the target file.
+
+View implementation rules in CakePHP v2:
+1. Helper Usage: Use CakePHP helpers for HTML generation instead of raw HTML tags:
+   - $this->Html->link() for links
+   - $this->Form->create(), $this->Form->input(), $this->Form->end() for forms
+   - $this->Paginator->sort(), $this->Paginator->numbers() for pagination
+   - $this->Session->flash() for flash messages
+2. Data Display: Display data passed from Controller using the $this->data array or view variables (e.g., $items, $user).
+3. Elements: Reuse view components using $this->element('element_name') for common UI patterns.
+4. Security: Always escape user input using helpers (they auto-escape by default). Never output raw user data.
+5. PHP 5.6 Compatibility: Use array() syntax instead of short array []. Avoid null coalescing operator ??.
+6. JavaScript/jQuery: If JavaScript is needed, wrap in document ready: $(function(){ ... });
+7. CSS Classes: Use Bootstrap classes if present in the project (e.g., btn, table, form-control).
+
+---
+
+# TARGET FILE SOURCE CODE
+Below is the original code of the component that requires processing.
+Study its structure, methods, and dependencies before starting work:
+
+```php
+<?php echo $this->element('admin_sidebar_centers') ?>
+
+	<div id="items" class="items-col">
+	<div class="titles clearfix">
+		<div class="pull-left">
+			<h2>Contratos</h2>
+		</div>
+	</div>
+
+	<?php echo $this->Session->flash(); ?>
+
+	<div class="search clearfix form-inline">
+		<div class="pull-left btn-group">
+		<?php
+			echo $this->Html->link( '<i class="icon-plus"></i> Agregar', array('action' => 'edit'), array('class' => 'btn btn-small', 'escape' => false));
+			echo $this->Html->link( '<i class="icon-trash"></i> Eliminar', '#', array('class' => 'btn btn-small to_action'.( count( $items ) <= 0 ? ' disabled ' : ''), 'rel' => 'delete', 'escape' => false));
+		?>
+		</div>
+	</div>
+
+	<?php if ( count( $items ) > 0 ) : ?>
+	<?php echo $this->Form->create('Index', array('id' => 'IndexForm', 'url' => '/'.$this->params['url'])) ?>
+	<table class="table table-striped">
+		<tr>
+			<th class="p2"><?php echo $this->Form->input('all', array('label' => false, 'type' => 'checkbox', 'value' => 'all', 'class' => 'allCheckBox')) ?></th>
+			<th><?php echo $this->Paginator->sort($model.'.code', 'Código <i></i>', array('class' => 'sorter', 'escape' => false) ); ?></th>
+			<th><?php echo $this->Paginator->sort($model.'.title', 'Sucursal <i></i>', array('class' => 'sorter', 'escape' => false) ); ?></th>
+			<th>&nbsp;</th>
+		</tr>
+		<?php $i=1; foreach ( $items as $item ): ?>
+		<tr id="item_<?php echo $item[$model]['id'] ?>">
+			<td><?php echo $this->Form->input('Index.check'.$item[$model]['id'], array('label' => false, 'type' => 'checkbox', 'value' => $item[$model]['id'], 'class' => 'check')) ?></td>
+			<td><?php echo $item[$model]['code']; ?></td>
+			<td><?php echo $item[$model]['title']; ?></td>
+			<td>
+				<div class="pull-right btn-group">
+					<?php echo $this->Html->link( '<i class="icon-pencil"></i> '.__("Edit", true), array('action' => 'edit', $item[$model]['id']), array( 'class' => 'btn btn-small', 'escape' => false) ); ?>
+				</div>
+			</td>
+		</tr>
+		<?php $i++; endforeach; ?>
+	</table>
+	<script type="text/javascript">
+	$(function(){
+		checkboxes_actions("<?php echo $controller ?>");
+	})
+	</script>
+	<?php echo $this->Form->end() ?>
+	<?php else : ?>
+	<div class="alert">
+		<?php echo __("No records") ?>
+	</div>
+	<?php endif; ?>
+
+	<?php echo $this->element('admin_pag') ?>

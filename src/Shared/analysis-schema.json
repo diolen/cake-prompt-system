@@ -18,7 +18,7 @@
       "type": "object",
       "required": ["target_layer", "file_path", "class_name"],
       "properties": {
-        "target_layer": { "type": "string", "enum": ["Controller", "Model", "Unknown"] },
+        "target_layer": { "type": "string", "enum": ["Controller", "Model", "View", "Unknown"] },
         "file_path": { "type": "string" },
         "class_name": { "type": "string" }
       }
@@ -33,10 +33,40 @@
     },
     "relations": {
       "type": "object",
-      "required": ["models", "components", "associations"],
+      "required": ["models", "components", "associations", "validate", "helpers", "elements", "variables", "controller_name"],
       "properties": {
         "models": { "type": "array", "items": { "type": "string" } },
         "components": { "type": "array", "items": { "type": "string" } },
+        "validate": {
+          "oneOf": [
+            {
+              "type": "array",
+              "maxItems": 0
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rule": { "type": ["string", "array"] },
+                    "message": { "type": "string" },
+                    "required": { "type": ["boolean", "string"] },
+                    "allowEmpty": { "type": "boolean" },
+                    "on": { "type": "string" }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            }
+          ]
+        },
+        "helpers": { "type": "array", "items": { "type": "string" } },
+        "elements": { "type": "array", "items": { "type": "string" } },
+        "element_context": { "type": "object", "additionalProperties": { "type": "object" }, "default": {} },
+        "variables": { "type": "array", "items": { "type": "string" } },
+        "controller_name": { "type": "string" },
         "associations": {
           "oneOf": [
             {

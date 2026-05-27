@@ -103,7 +103,55 @@ Below are the static analysis data of the file that needs to be processed:
             },
             "hasOne": [],
             "hasAndBelongsToMany": []
-        }
+        },
+        "validate": {
+            "center_id": [
+                {
+                    "rule": "notEmpty"
+                }
+            ],
+            "contract_type_id": [
+                {
+                    "rule": "notEmpty"
+                }
+            ],
+            "contract_id": [
+                {
+                    "rule": "notEmpty"
+                }
+            ],
+            "eventual_contract_id": [
+                {
+                    "rule": "notEmpty"
+                }
+            ],
+            "justification": [
+                {
+                    "rule": "notEmpty"
+                }
+            ],
+            "supplier_id": [
+                {
+                    "rule": "notEmpty",
+                    "message": "Seleccione un Proveedor"
+                },
+                {
+                    "rule": "checkSupplierData",
+                    "on": "create",
+                    "message": "Configurar datos bancarios, mail, IVA, categoría de IIBB del proveedor"
+                }
+            ],
+            "date_of": [
+                {
+                    "message": "Máximo 10 días para atras."
+                }
+            ]
+        },
+        "helpers": [],
+        "elements": [],
+        "element_context": {},
+        "variables": [],
+        "controller_name": ""
     },
     "impacted_by": [
         "ReportsController",
